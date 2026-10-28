@@ -1,0 +1,42 @@
+{# 检出代码弹窗：由 _reposide.html / _repohead.html 的「检出代码」按钮触发（见 base.html 的弹窗脚本）。
+   注意：这里不能依赖 _repohead.html 里的 {% set %}——include 是独立作用域，
+   本文件需要自己算一遍。本文件只在整页渲染时引入（fragment 分支不引入），
+   避免「加载更多」的局部刷新产生重复 id。
+   检出路径跟着当前浏览的目录走（SVN 支持检出任意子目录）：后端传 clone_dir，
+   文件页（blob / blame）传的是文件所在目录；没传就退回 path。 #}
+{% set _clone_dir = clone_dir if clone_dir is defined else (path|default('')) %}
+{% set clone_http = checkout_url(name, _clone_dir) %}
+{% set clone_cmd = 'svn checkout ' ~ clone_http ~ ' --username ' ~ user %}
+<div class="modal" id="clone-modal" hidden>
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="clone-modal-title">
+    <div class="modal-head">
+      <h2 class="modal-title" id="clone-modal-title">{% if _clone_dir %}检出这个目录{% else %}检出这个仓库{% endif %}</h2>
+      <button type="button" class="modal-x" data-modal-close aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="clone-row">
+        <span class="clone-label">检出地址</span>
+        <div class="clone-field">
+          <input id="clone-url" class="clone-input mono" type="text" readonly
+                 spellcheck="false" value="{{ clone_http }}">
+          <button type="button" class="btn btn-copy" data-copy="#clone-url">复制</button>
+        </div>
+      </div>
+      <div class="clone-row">
+        <span class="clone-label">检出命令</span>
+        <div class="clone-field">
+          <input id="clone-cmd-text" class="clone-input mono" type="text" readonly
+                 spellcheck="false" value="{{ clone_cmd }}">
+          <button type="button" class="btn btn-copy" data-copy="#clone-cmd-text">复制</button>
+        </div>
+      </div>
+      {% if _clone_dir %}
+      <p class="clone-hint">只检出 <span class="mono">{{ _clone_dir }}</span> 这一层（SVN 支持直接检出子目录），仓库其它内容不会一起取出。</p>
+      {% endif %}
+      <p class="clone-hint">首次检出需要输入仓库账号（{{ user }}）；账号与密码由仓库的「仓库设置」维护。</p>
+    </div>
+  </div>
+</div>

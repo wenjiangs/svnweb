@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} · 代码仓库{% endblock %}
+{# 头部条走通栏区（.container 之外），克隆按钮挪到右侧信息栏的「操作」里 #}
+{% block pagehead %}
+{% set repo_side_clone = True %}
+{% include "_repohead.html" %}
+{% endblock %}
+{% block content %}
+<div class="repo-layout">
+  <div class="repo-main">
+{% include "_breadcrumb.html" %}
+
+{% if stdlib %}
+{% macro bi(kind) -%}
+{%- if kind == 'commit' -%}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5Zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0Z"/></svg>
+{%- elif kind == 'branch' -%}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.492 2.492 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg>
+{%- elif kind == 'tag' -%}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M1 7.775V2.75C1 1.784 1.784 1 2.75 1h5.025c.464 0 .91.184 1.238.513l6.25 6.25a1.75 1.75 0 0 1 0 2.474l-5.026 5.026a1.75 1.75 0 0 1-2.474 0l-6.25-6.25A1.752 1.752 0 0 1 1 7.775Zm1.5 0c0 .066.026.13.073.177l6.25 6.25a.25.25 0 0 0 .354 0l5.025-5.025a.25.25 0 0 0 0-.354l-6.25-6.25a.25.25 0 0 0-.177-.073H2.75a.25.25 0 0 0-.25.25ZM6 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/></svg>
+{%- else -%}
+<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75ZM.75 2.75a.25.25 0 0 1 .25-.25H5c.446 0 .87.205 1.146.556l.897 1.16c.181.234.46.37.754.37h6.453a.25.25 0 0 1 .25.25v8.414a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25Z"/></svg>
+{%- endif -%}
+{%- endmacro %}
+{%- set seg0 = path.split('/')[0] if path else '' -%}
+<div class="branch-row">
+  <div class="branch-switch" id="branch-switch">
+    <button type="button" class="branch-select-btn" id="branch-select-btn" aria-haspopup="listbox" aria-expanded="false">
+      {%- if seg0 == 'trunk' -%}{{ bi('commit') }}
+      {%- elif seg0 == 'branches' -%}{{ bi('branch') }}
+      {%- elif seg0 == 'tags' -%}{{ bi('tag') }}
+      {%- else -%}{{ bi('folder') }}
+      {%- endif -%}
+      <span class="bs-label">{{ path or '切换路径…' }}</span>
+      <svg class="bs-chev" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.939l3.72-3.719a.749.749 0 0 1 1.06 0Z"/></svg>
+    </button>
+    <div class="branch-menu" role="listbox" aria-label="切换分支/路径">
+      {% for s in stdlib %}
+      <div class="branch-item" role="option" data-v="{{ s }}">
+        {%- if s == 'trunk' %}{{ bi('commit') }}{% elif s == 'branches' %}{{ bi('branch') }}{% else %}{{ bi('tag') }}{% endif -%}
+        <span class="mono">{{ s }}</span>
+      </div>
+      {% endfor %}
+      {% if branches %}
+        {% for b in branches.branches %}
+        <div class="branch-item child" role="option" data-v="branches/{{ b }}">{{ bi('branch') }}<span class="mono">{{ b }}</span></div>
+        {% endfor %}
+        {% for t in branches.tags %}
+        <div class="branch-item child" role="option" data-v="tags/{{ t }}">{{ bi('tag') }}<span class="mono">{{ t }}</span></div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if not path %}
+  <div class="stdlib-nav">
+  {% for s in stdlib %}
+  <a class="stdlib-chip" href="{{ url_for('tree', name=name, path=s, rev=(rev if rev != head else None)) }}">
+    {% if s == 'trunk' %}
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5Zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0Z"/></svg>
+    {% elif s == 'branches' %}
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.492 2.492 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg>
+    {% else %}
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M1 7.775V2.75C1 1.784 1.784 1 2.75 1h5.025c.464 0 .91.184 1.238.513l6.25 6.25a1.75 1.75 0 0 1 0 2.474l-5.026 5.026a1.75 1.75 0 0 1-2.474 0l-6.25-6.25A1.752 1.752 0 0 1 1 7.775Zm1.5 0c0 .066.026.13.073.177l6.25 6.25a.25.25 0 0 0 .354 0l5.025-5.025a.25.25 0 0 0 0-.354l-6.25-6.25a.25.25 0 0 0-.177-.073H2.75a.25.25 0 0 0-.25.25ZM6 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/></svg>
+    {% endif %}
+    <span class="mono">{{ s }}</span>
+  </a>
+  {% endfor %}
+</div>
+  {% endif %}
+</div>
+<script>
+(function(){
+  var root = document.getElementById('branch-switch');
+  if (!root) return;
+  var btn = document.getElementById('branch-select-btn');
+  var menu = root.querySelector('.branch-menu');
+  var ac = new AbortController();
+  {# pjax 每次都会重执行本脚本：挂到 window 上的句柄先 abort 上一份实例的
+     document 监听。不能用 pjax:end + once 清理 —— rehydrateScripts 在
+     pjax:end 派发之前同步执行，新注册的 once 监听会误捕当次事件把自己杀掉，
+     导致「点击外部关闭」失效。 #}
+  if (window.__branchSwitchAC) window.__branchSwitchAC.abort();
+  window.__branchSwitchAC = ac;
+  function close(){
+    menu.classList.remove('open');
+    btn.setAttribute('aria-expanded', 'false');
+  }
+  btn.addEventListener('click', function(e){
+    e.stopPropagation();
+    var open = menu.classList.toggle('open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  document.addEventListener('click', function(e){
+    if (!root.contains(e.target)) close();
+  }, { signal: ac.signal });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') close();
+  }, { signal: ac.signal });
+  menu.addEventListener('click', function(e){
+    var it = e.target.closest('.branch-item');
+    if (!it) return;
+    var v = it.getAttribute('data-v');
+    if (!v) return;
+    var base = {{ url_for('tree', name=name, path='')|tojson }};
+    var u = new URL(base, window.location.origin);
+    u.pathname = u.pathname.replace(/\/+$/, '') + '/' + v.split('/').map(encodeURIComponent).join('/') + '/';
+    {% if rev != head %}u.searchParams.set('rev', '{{ rev }}');{% endif %}
+    window.location.href = u.toString();
+  });
+})();
+</script>
+{% endif %}
+
+{% if last %}
+<div class="latest-commit">
+  <span class="lc-avatar">{{ (last.author or '?')[0]|upper }}</span>
+  <span class="lc-author">{{ last.author or '未知' }}</span>
+  <span class="lc-msg{% if not last.msg %} msg-empty{% endif %}">{{ last.msg or '无提交信息' }}</span>
+  <a class="lc-rev" href="{{ url_for('commit', name=name, rev=last.rev) }}">r{{ last.rev }}</a>
+  <span class="lc-time">{{ rel_time(last.date) }}</span>
+</div>
+{% endif %}
+
+{% if entries %}
+<table class="files">
+  <thead>
+    <tr>
+      <th class="col-name">名称</th><th class="col-size">大小</th><th class="col-rev">版本</th><th class="col-time">时间</th><th class="col-msg">提交信息</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+    {% set child = (path ~ '/' ~ e.name).strip('/') %}
+    <tr>
+      <td class="col-name">
+        {% if e.kind == 'dir' %}
+          <svg class="fi fi-dir" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="#54aeff" fill-rule="evenodd" d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75ZM.75 2.75a.25.25 0 0 1 .25-.25H5c.446 0 .87.205 1.146.556l.897 1.16c.181.234.46.37.754.37h6.453a.25.25 0 0 1 .25.25v8.414a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25Z"/></svg>
+        {% else %}
+          <svg class="fi fi-file" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="#57606a" d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"/></svg>
+        {% endif %}
+        {% if e.kind == 'dir' %}
+          <a href="{{ url_for('tree', name=name, path=child, rev=(rev if rev != head else None)) }}">{{ e.name }}</a>
+        {% else %}
+          <a href="{{ url_for('blob', name=name, path=child, rev=(rev if rev != head else None)) }}">{{ e.name }}</a>
+        {% endif %}
+      </td>
+      <td class="col-size">{{ human_size(e.size) }}</td>
+      <td class="col-rev">
+        {% if e.rev %}
+          <a class="msg-rev" href="{{ url_for('commit', name=name, rev=e.rev) }}">r{{ e.rev }}</a>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </td>
+      <td class="col-time">
+        {% if e.rev %}
+          <span class="msg-time">{{ rel_time(e.date) }}</span>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </td>
+      <td class="col-msg">
+        {% if e.msg %}
+          <span class="msg-text" title="{{ e.msg }}">{{ e.msg }}</span>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  {% if head == 0 %}
+  <div class="empty">该仓库为空仓库（r0），尚无任何提交。按上方的检出地址取出后提交内容，即可在此浏览。</div>
+  {% else %}
+  <div class="empty">该目录为空</div>
+  {% endif %}
+{% endif %}
+
+{% if readme_html %}
+<div class="readme-box">
+  <div class="readme-head">
+    <span class="readme-title">README</span>
+    {% if readme_path %}
+    <a class="btn btn-mini" href="{{ url_for('blob', name=name, path=readme_path, rev=(rev if rev != head else None)) }}">查看文件</a>
+    {% endif %}
+  </div>
+  <div class="readme-body md-render">{{ readme_html|safe }}</div>
+</div>
+{% endif %}
+  </div>
+
+{% set side_page = 'tree' %}
+{% include "_reposide.html" %}
+</div>
+{% include "_clonemodal.html" %}
+
+{# 在线创建分支/标签：svn copy 服务端完成，无需本地工作副本 #}
+<div class="modal" id="branch-modal" hidden>
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="branch-modal-title">
+    <div class="modal-head">
+      <h2 class="modal-title" id="branch-modal-title">创建分支 / 标签</h2>
+      <button type="button" class="modal-x" data-modal-close aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <form method="post" action="{{ url_for('create_branch', name=name) }}">
+        <fieldset class="perm-fieldset">
+          <label class="perm-legend">类型</label>
+          <label class="perm-opt"><input type="radio" name="kind" value="branches" checked>分支 branches/</label>
+          <label class="perm-opt"><input type="radio" name="kind" value="tags">标签 tags/</label>
+        </fieldset>
+        <label class="field">
+          <span class="field-label">名称</span>
+          <input type="text" name="name" required maxlength="64"
+                 pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,63}"
+                 placeholder="例如 v1.0.0 或 feature-x" spellcheck="false">
+        </label>
+        <label class="field">
+          <span class="field-label">复制来源（仓库内路径）</span>
+          <input type="text" name="src" value="{{ path }}" spellcheck="false"
+                 placeholder="留空 = 整个仓库；一般填 trunk">
+          <span class="field-hint">服务端直接 svn copy，不影响工作副本，也不检出文件。</span>
+        </label>
+        <label class="field">
+          <span class="field-label">提交信息（可选）</span>
+          <input type="text" name="msg" maxlength="200"
+                 placeholder="留空则自动生成">
+        </label>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">创建</button>
+          <button class="btn" type="button" data-modal-close>取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

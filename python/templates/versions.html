@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% block title %}版本列表 · {{ name }}{% endblock %}
+{# 头部条走通栏区（.container 之外），克隆按钮挪到右侧信息栏的「操作」里 #}
+{% block pagehead %}
+{% set repo_side_clone = True %}
+{% include "_repohead.html" %}
+{% endblock %}
+{% block content %}
+{% if not fragment %}
+<div class="repo-layout">
+  <div class="repo-main">
+{% include "_breadcrumb.html" %}
+{% endif %}
+
+<div class="section-head">
+  <h2 class="section-title">版本列表{% if path %} · <span class="mono">{{ path }}</span>{% endif %}</h2>
+  <span class="section-sub">
+    {%- if search -%}
+      匹配「{{ search }}」共 {{ total }} 条{% if truncated %}（结果已截断，可能不完整）{% endif %}
+    {%- else -%}
+      共 {{ total }} 条
+    {%- endif -%}
+  </span>
+</div>
+
+<form class="commit-search" method="get" action="{{ url_for('versions', name=name, path=(path or None)) }}">
+  {% if rev != head %}<input type="hidden" name="rev" value="{{ rev }}">{% endif %}
+  <div class="cs-row">
+    <input type="search" name="search" value="{{ search }}" autocomplete="off"
+           placeholder="搜索提交信息 / 文件名 / 代码…">
+    <button class="btn" type="submit">搜索</button>
+    {% if search %}<a class="btn btn-mini" href="{{ url_for('versions', name=name, path=(path or None), rev=(rev if rev != head else None)) }}">清除</a>{% endif %}
+  </div>
+  <div class="search-scopes">
+    <span class="ss-label">范围</span>
+    {% for s in search_scope_order %}
+    <label class="ss-item"><input type="checkbox" name="scope" value="{{ s }}"{% if s in scopes %} checked{% endif %}>{{ search_scope_labels[s] }}</label>
+    {% endfor %}
+    <span class="ss-note">「代码变更」会扫描整段历史的差异，仓库较大时首次稍慢</span>
+  </div>
+</form>
+
+<div class="ver-hint">
+  勾选 <b>两个</b> 版本即可对比；再勾第三个时，会自动取消最早选中的那个。点击版本号或「详情」可查看该版本的完整改动。
+</div>
+
+{% if logs %}
+<table class="ver-table">
+  <thead>
+    <tr>
+      <th class="col-check"><span class="visually-hidden">选择</span></th>
+      <th class="col-rev">版本</th>
+      <th class="col-msg">提交信息</th>
+      <th class="col-author">作者</th>
+      <th class="col-time">时间</th>
+      <th class="col-files">文件数</th>
+      <th class="col-act">操作</th>
+    </tr>
+  </thead>
+  <tbody id="commit-list">
+    {% for c in logs %}
+    <tr class="ver-item" data-rev="{{ c.rev }}">
+      <td class="col-check">
+        <input class="ver-check" type="checkbox" value="{{ c.rev }}"
+               aria-label="选择版本 r{{ c.rev }}">
+      </td>
+      <td class="col-rev">
+        <a class="rev-badge" href="{{ url_for('commit', name=name, rev=c.rev) }}">r{{ c.rev }}</a>
+      </td>
+      <td class="col-msg">
+        <span class="ver-msg{% if not c.msg %} msg-empty{% endif %}" title="{{ c.msg or '' }}">{{ c.msg or '无提交信息' }}</span>
+        {% if c.matches %}
+        <div class="ver-match">
+          {% for m in c.matches %}
+          <div class="ver-match-line">
+            <span class="vm-scope vm-scope-{{ m.scope }}">{{ search_scope_labels[m.scope] }}</span>
+            {% if m.scope == 'path' and m.kind %}<span class="act act-{{ m.kind }}">{{ search_kind_labels.get(m.kind, m.kind) }}</span>{% endif %}
+            {% if m.scope == 'code' and m.kind %}<span class="vm-kind vm-kind-{{ m.kind }}">{{ search_kind_labels.get(m.kind, m.kind) }}</span>{% endif %}
+            {% if m.path %}<a class="vm-path mono" href="{{ url_for('commit_file', name=name, rev=c.rev, path=m.path) }}" title="{{ m.path }}">{{ m.path }}</a>{% endif %}
+            <code class="vm-text">{{ m.before }}<mark class="vm-hit">{{ m.hit }}</mark>{{ m.after }}</code>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </td>
+      <td class="col-author">
+        <span class="ver-author" title="{{ c.author or '' }}">{{ c.author or '未知' }}</span>
+      </td>
+      <td class="col-time">
+        <span class="ver-time">{{ human_time(c.date) }}</span>
+        <span class="ver-rel">{{ rel_time(c.date) }}</span>
+      </td>
+      <td class="col-files">
+        {% if c.paths %}{{ c.paths|length }} 个文件{% else %}<span class="muted">--</span>{% endif %}
+      </td>
+      <td class="col-act">
+        <a class="btn btn-mini" href="{{ url_for('commit', name=name, rev=c.rev) }}">详情</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% if has_more %}
+<div class="load-more">
+  <button id="btn-more" class="btn btn-block" type="button">加载更多</button>
+</div>
+{% endif %}
+{% else %}
+<div class="empty">{% if search %}没有匹配「{{ search }}」的版本{% if truncated %}（历史扫描未跑完，结果可能不完整）{% endif %}{% else %}暂无版本记录{% endif %}</div>
+{% endif %}
+{% if not fragment %}
+  </div>
+
+{% set side_page = 'versions' %}
+{% include "_reposide.html" %}
+</div>
+{% include "_clonemodal.html" %}
+{% endif %}
+
+{% if logs %}
+<div class="ver-bar" id="ver-bar">
+  <div class="ver-picks">
+    <span class="ver-pick" data-slot="0"><span class="ver-badge">A</span><span class="ver-pick-val">未选择</span></span>
+    <span class="ver-vs">vs</span>
+    <span class="ver-pick" data-slot="1"><span class="ver-badge">B</span><span class="ver-pick-val">未选择</span></span>
+  </div>
+  <div class="ver-bar-right">
+    <span class="ver-count" id="ver-count">已选 0 / 2</span>
+    <button class="btn btn-mini" type="button" id="ver-clear" disabled>清空</button>
+    <button class="btn btn-primary" type="button" id="ver-compare" disabled>对比选中版本</button>
+  </div>
+</div>
+{% endif %}
+
+{% if has_more %}
+<script>
+(function () {
+  var btn = document.getElementById('btn-more');
+  if (!btn) return;
+  var list = document.getElementById('commit-list');
+  var url = new URL(window.location.href);
+  btn.addEventListener('click', function () {
+    btn.disabled = true; btn.textContent = '加载中…';
+    var minRev = null;
+    list.querySelectorAll('.rev-badge').forEach(function (a) {
+      var m = /r(\d+)/.exec(a.textContent);
+      if (m) { var v = parseInt(m[1], 10); if (minRev === null || v < minRev) minRev = v; }
+    });
+    if (minRev === null) { minRev = parseInt({{ head }}, 10); }
+    url.searchParams.set('before', minRev);
+    var items = Array.prototype.map.call(list.querySelectorAll('.rev-badge'), function (a) {
+      var m = /r(\d+)/.exec(a.textContent); return m ? m[1] : null;
+    });
+    url.searchParams.set('seen', items.filter(Boolean).join(','));
+    url.searchParams.set('fragment', '1');   // 只取列表片段，不重复渲染侧栏
+    fetch(url.toString(), { headers: { 'Accept': 'text/html' } })
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var newList = doc.getElementById('commit-list');
+        var newBtn = doc.getElementById('btn-more');
+        if (newList) {
+          Array.prototype.forEach.call(newList.children, function (row) { list.appendChild(row); });
+        }
+        if (newBtn) {
+          btn.disabled = false; btn.textContent = '加载更多';
+        } else {
+          var el = btn.parentNode;
+          if (el) el.parentNode.removeChild(el);
+        }
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = '加载失败，点击重试'; });
+  });
+})();
+</script>
+{% endif %}
+
+<script>
+(function () {
+  var bar = document.getElementById('ver-bar');
+  if (!bar) return;
+  var list = document.getElementById('commit-list');
+  var countEl = document.getElementById('ver-count');
+  var clearBtn = document.getElementById('ver-clear');
+  var cmpBtn = document.getElementById('ver-compare');
+  var slots = bar.querySelectorAll('.ver-pick');
+  var MAX = 2;
+  // 按勾选先后排序的版本号队列：队首为最早勾选，队尾为最新勾选
+  var picked = [];
+
+  function labelOf(rev) {
+    var row = list.querySelector('.ver-item[data-rev="' + rev + '"]');
+    if (!row) return 'r' + rev;
+    var msg = row.querySelector('.ver-msg');
+    var text = msg ? msg.textContent.trim() : '';
+    if (!text || text === '无提交信息') text = '无提交信息';
+    return 'r' + rev + ' · ' + (text.length > 24 ? text.slice(0, 24) + '…' : text);
+  }
+
+  function render() {
+    // 逐行同步选中态
+    list.querySelectorAll('.ver-item').forEach(function (row) {
+      var rev = row.getAttribute('data-rev');
+      var on = picked.indexOf(rev) !== -1;
+      row.classList.toggle('is-checked', on);
+      var cb = row.querySelector('.ver-check');
+      if (cb) cb.checked = on;
+    });
+    // 两个槽位：A=较早选中的，B=较晚选中的
+    for (var i = 0; i < MAX; i++) {
+      var val = slots[i].querySelector('.ver-pick-val');
+      var rev = picked[i];
+      slots[i].classList.toggle('is-filled', !!rev);
+      if (rev) {
+        val.textContent = labelOf(rev);
+        val.classList.remove('ver-empty');
+      } else {
+        val.textContent = '未选择';
+        val.classList.add('ver-empty');
+      }
+    }
+    countEl.textContent = '已选 ' + picked.length + ' / ' + MAX;
+    clearBtn.disabled = picked.length === 0;
+    cmpBtn.disabled = picked.length !== MAX;
+  }
+
+  function pick(rev) {
+    if (picked.indexOf(rev) !== -1) return;
+    picked.push(rev);
+    // 超出两个时，淘汰最早勾选的那个
+    while (picked.length > MAX) { picked.shift(); }
+    render();
+  }
+
+  function unpick(rev) {
+    var i = picked.indexOf(rev);
+    if (i !== -1) picked.splice(i, 1);
+    render();
+  }
+
+  list.addEventListener('change', function (ev) {
+    var cb = ev.target;
+    if (!cb || !cb.classList.contains('ver-check')) return;
+    var rev = cb.value;
+    if (cb.checked) { pick(rev); } else { unpick(rev); }
+  });
+
+  clearBtn.addEventListener('click', function () {
+    picked = [];
+    render();
+  });
+
+  cmpBtn.addEventListener('click', function () {
+    if (picked.length !== MAX) return;
+    var url = {{ url_for('compare_revisions', name=name)|tojson }};
+    var qs = '?a=' + encodeURIComponent(picked[0]) +
+             '&b=' + encodeURIComponent(picked[1]);
+    var scope = {{ (path or '')|tojson }};
+    if (scope) { qs += '&path=' + encodeURIComponent(scope); }
+    window.location.href = url + qs;
+  });
+
+  render();
+})();
+</script>
+{% endblock %}

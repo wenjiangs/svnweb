@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}审计日志{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1 class="page-title">审计日志</h1>
+  <span class="repo-count">{{ entries|length }} 条{% if q_repo or q_action %} · 已过滤{% endif %}</span>
+</div>
+<p class="admin-desc page-sub">
+  记录管理端的所有变更操作（建仓/归档/重命名/账号/权限/描述/密码），只追加、不修改，
+  存放于服务端 <code>audit.log</code>。展示最近 {{ 300 }} 条。
+</p>
+
+<form class="audit-filter" method="get">
+  <input type="text" name="repo" value="{{ q_repo }}" placeholder="按仓库名过滤"
+         spellcheck="false" autocomplete="off">
+  <select name="action">
+    <option value="">全部动作</option>
+    {% for a in actions %}
+    <option value="{{ a.v }}" {% if a.v == q_action %}selected{% endif %}>{{ a.label }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn" type="submit">筛选</button>
+  {% if q_repo or q_action %}
+  <a class="btn" href="{{ url_for('audit_page') }}">清除</a>
+  {% endif %}
+</form>
+
+<table class="ver-table audit-table">
+  <thead>
+    <tr>
+      <th class="col-time">时间</th>
+      <th class="col-who">操作人</th>
+      <th class="col-act2">动作</th>
+      <th class="col-repo2">仓库</th>
+      <th class="col-detail">详情</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+    <tr>
+      <td class="col-time mono">{{ e.ts }}</td>
+      <td class="col-who">{{ e.user }}</td>
+      <td class="col-act2">
+        <span class="tag audit-tag audit-{{ e.action }}">{{ e.label or e.action }}</span>
+      </td>
+      <td class="col-repo2">
+        {% if e.repo and e.action in ('create_repo', 'restore_repo') %}
+        <a href="{{ url_for('repo_home', name=e.repo) }}">{{ e.repo }}</a>
+        {% elif e.repo %}
+        <span class="mono">{{ e.repo }}</span>
+        {% else %}
+        <span class="msg-empty">--</span>
+        {% endif %}
+      </td>
+      <td class="col-detail" title="{{ e.detail }}">{{ e.detail or '--' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="empty">暂无审计记录</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,53 @@
+# svnWeb HTTPS 反代示例（nginx）
+#
+# 用途：Web 站（waitress, 127.0.0.1:37245）目前是裸 HTTP，用 nginx 终止 HTTPS。
+# 前提：nginx 已占用 80/443；证书放到 /etc/nginx/ssl/ 下（或用已有证书路径）。
+#
+# 使用步骤（服务器上执行）：
+#   1. cp nginx-svnweb.conf.example /etc/nginx/conf.d/svnweb.conf
+#   2. 改 server_name 与证书路径
+#   3. nginx -t && systemctl reload nginx
+#   4. 编辑 /opt/svnweb/config.json，加入 "behind_proxy": true
+#      （应用将按 X-Forwarded-Proto 识别 https，checkout 等绝对地址才正确）
+#   5. systemctl restart svnweb
+#
+# 之后可考虑把 svnserve 的明文 3690 端口逐步收窄到内网/防火墙白名单。
+
+server {
+    listen 80;
+    server_name svn.example.com;
+    # 全部 301 到 https
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name svn.example.com;
+
+    ssl_certificate     /etc/nginx/ssl/svn.example.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/svn.example.com.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # 打包下载与备份文件可能较大
+    client_max_body_size 64m;
+    proxy_read_timeout 600s;
+    proxy_send_timeout 600s;
+
+    location / {
+        proxy_pass http://127.0.0.1:37245;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # 静态资源可加缓存（可选）
+    location /static/ {
+        proxy_pass http://127.0.0.1:37245;
+        proxy_set_header Host $host;
+        expires 1h;
+        add_header Cache-Control "public";
+    }
+}

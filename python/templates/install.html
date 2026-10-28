@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}安装向导 · SVN Web{% endblock %}
+{% set crit_missing = env.tools | selectattr('ok', 'equalto', false) | rejectattr('name', 'equalto', 'svnserve') | map(attribute='name') | list %}
+{% block content %}
+<div class="setup-wrap"
+     data-env-fail="{{ 1 if crit_missing else 0 }}"
+     data-open-step="{{ open_step if open_step else 1 }}">
+
+  <header class="setup-head">
+    <h1>安装 SVN Web</h1>
+    <p>三步完成初始化，保存后立即生效、无需重启</p>
+    <nav class="setup-steps" aria-label="安装步骤">
+      <button type="button" class="setup-step" data-goto="1"><b>1</b>环境检查</button>
+      <span class="setup-step-arrow">›</span>
+      <button type="button" class="setup-step" data-goto="2"><b>2</b>基础配置</button>
+      <span class="setup-step-arrow">›</span>
+      <button type="button" class="setup-step" data-goto="3"><b>3</b>管理员账号</button>
+    </nav>
+  </header>
+
+  {% for e in errors %}<div class="flash flash-error">{{ e }}</div>{% endfor %}
+
+  <section class="setup-card" id="sec-env" data-panel="1">
+    <h2 class="setup-sec"><span class="setup-num">1</span>环境检查</h2>
+    {% if crit_missing %}
+    <div class="flash flash-error setup-env-banner">
+      环境检查未通过：缺少 {{ crit_missing | join('、') }}。
+      请先安装 Subversion（确保 <code>svn</code>、<code>svnadmin</code>、<code>svnlook</code> 可用）后刷新本页。
+    </div>
+    {% else %}
+    <div class="flash flash-success setup-env-banner">环境检查通过，可以进入下一步。</div>
+    {% endif %}
+    <div class="env-grid">
+      <div class="env-item ok">
+        <span class="env-state"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg></span>
+        <span class="env-name">Python</span>
+        <span class="env-ver">{{ env.py }}</span>
+      </div>
+      {% for t in env.tools %}
+      <div class="env-item {{ 'ok' if t.ok else ('warn' if t.name == 'svnserve' else 'bad') }}">
+        <span class="env-state">
+          {% if t.ok %}
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg>
+          {% elif t.name == 'svnserve' %}
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 1.5c.28 0 .5.22.5.5v.56a5.5 5.5 0 0 1 4.94 4.94h.56a.5.5 0 0 1 0 1h-.56A5.5 5.5 0 0 1 8.5 13.44V14a.5.5 0 0 1-1 0v-.56a5.5 5.5 0 0 1-4.94-4.94H2a.5.5 0 0 1 0-1h.56A5.5 5.5 0 0 1 7.5 2.56V2c0-.28.22-.5.5-.5ZM8 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 1.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z"/></svg>
+          {% else %}
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M2.34 3.4a.75.75 0 0 1 1.06-1.06l10.26 10.26a.75.75 0 1 1-1.06 1.06L2.34 3.4ZM8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z"/></svg>
+          {% endif %}
+        </span>
+        <span class="env-name">{{ t.name }}</span>
+        <span class="env-ver">{{ t.ver if t.ok else '未找到' }}</span>
+      </div>
+      {% endfor %}
+      <div class="env-item {{ 'ok' if env.svn_listen else 'warn' }}">
+        <span class="env-state">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm0 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13Z"/><path fill="currentColor" d="M8 3.5a.75.75 0 0 1 .75.75v3.69l2.4 1.44a.75.75 0 1 1-.78 1.28l-2.75-1.65A.75.75 0 0 1 7.25 8.4V4.25A.75.75 0 0 1 8 3.5Z"/></svg>
+        </span>
+        <span class="env-name">svn:// 3690</span>
+        <span class="env-ver">{{ '已在监听' if env.svn_listen else '暂未监听' }}</span>
+      </div>
+    </div>
+    <p class="setup-tip">
+      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 7.2v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/><circle cx="8" cy="4.9" r=".9" fill="currentColor"/></svg>
+      缺少 svnserve 只影响 svn:// 协议的检出与提交，网页浏览不受影响；
+      如果你的 SVN 用了自定义端口，请在第 2 步的「SVN 端口」里填写。
+    </p>
+  </section>
+
+  <form method="post" action="{{ url_for('install') }}" novalidate>
+    <section class="setup-card" id="sec-base" data-panel="2" hidden>
+      <h2 class="setup-sec"><span class="setup-num">2</span>基础配置</h2>
+
+      <div class="field">
+        <span class="field-label">SVN 仓库根目录 <em>（svnserve -r 指向的父目录，所有仓库都在其下；不存在会自动创建）</em></span>
+        <span class="field-input">
+          <span class="field-icon">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M1.5 3.75c0-.69.56-1.25 1.25-1.25h2.9c.4 0 .78.19 1.02.51l.6.8c.05.06.12.09.19.09h5.29c.69 0 1.25.56 1.25 1.25v7.1c0 .69-.56 1.25-1.25 1.25H2.75c-.69 0-1.25-.56-1.25-1.25V3.75Z"/></svg>
+          </span>
+          <input type="text" name="repo_root" value="{{ form.repo_root }}" placeholder="{{ env.repo_root_suggest }}">
+        </span>
+      </div>
+
+      <div class="setup-row">
+        <div class="field">
+          <span class="field-label">检出地址主机名 <em>（可选）</em></span>
+          <span class="field-input">
+            <span class="field-icon">
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 8h13M8 1.5c2.3 2.3 2.3 10.7 0 13M8 1.5c-2.3 2.3-2.3 10.7 0 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            </span>
+            <input type="text" name="svn_host" value="{{ form.svn_host }}" placeholder="如 192.168.1.10 或 svn.example.com">
+          </span>
+        </div>
+        <div class="field setup-field-sm">
+          <span class="field-label">SVN 端口</span>
+          <span class="field-input">
+            <span class="field-icon">
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M5.5 2 4 14M11.5 2 10 14M2.5 5.5h11.5M2 10.5h11.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            </span>
+            <input type="text" name="svn_port" value="{{ form.svn_port }}" placeholder="默认 3690" inputmode="numeric">
+          </span>
+        </div>
+      </div>
+
+      <p class="setup-tip">
+        <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 7.2v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/><circle cx="8" cy="4.9" r=".9" fill="currentColor"/></svg>
+        两栏都留空 = 检出地址按浏览器访问的域名自动推断；自定义端口请填在「SVN 端口」，
+        将生成形如 <code>svn://主机名:端口</code> 的检出地址。
+      </p>
+
+      <label class="setup-check">
+        <input type="checkbox" name="behind_proxy" {% if form.behind_proxy %}checked{% endif %}>
+        <span>
+          <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M8 1.5 13.5 3.5v4.2c0 3.4-2.3 5.9-5.5 6.8-3.2-.9-5.5-3.4-5.5-6.8V3.5L8 1.5Z"/></svg>
+          部署在 nginx 反代之后（按 X-Forwarded-Proto 识别 HTTPS）
+        </span>
+      </label>
+    </section>
+
+    <section class="setup-card" id="sec-admin" data-panel="3" hidden>
+      <h2 class="setup-sec"><span class="setup-num">3</span>管理员账号</h2>
+
+      <div class="field">
+        <span class="field-label">管理员用户名</span>
+        <span class="field-input">
+          <span class="field-icon">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M10.56 8.5a4.5 4.5 0 1 0-5.12 0A5.5 5.5 0 0 0 2 13.75a.75.75 0 0 0 1.5 0 4 4 0 0 1 9 0 .75.75 0 0 0 1.5 0 5.5 5.5 0 0 0-3.44-5.25ZM8 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"/></svg>
+          </span>
+          <input type="text" name="username" value="{{ form.username }}" autocomplete="username">
+        </span>
+      </div>
+
+      <div class="field">
+        <span class="field-label">管理员密码 <em>（至少 6 位）</em></span>
+        <span class="field-input">
+          <span class="field-icon">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4Zm8.25 3.5h-8.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25ZM10.5 6V4a2.5 2.5 0 1 0-5 0v2Z"/></svg>
+          </span>
+          <input type="password" name="password" id="inst-pw" autocomplete="new-password">
+          <button type="button" class="pwd-toggle" data-toggle="inst-pw" aria-label="显示密码">
+            <svg class="ico-eye" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M8 3C4.5 3 1.7 5.3.2 7.7a.75.75 0 0 0 0 .6C1.7 10.7 4.5 13 8 13s6.3-2.3 7.8-4.7a.75.75 0 0 0 0-.6C14.3 5.3 11.5 3 8 3Zm0 8.5c-2.6 0-4.8-1.6-6.2-3.5C3.2 6.1 5.4 4.5 8 4.5s4.8 1.6 6.2 3.5c-1.4 1.9-3.6 3.5-6.2 3.5Z"/><path fill="currentColor" d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Zm0 3.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>
+            <svg class="ico-eye-off" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M2.28 1.22a.75.75 0 0 0-1.06 1.06l1.9 1.9C1.9 5.06.8 6.3.2 7.7a.75.75 0 0 0 0 .6C1.7 10.7 4.5 13 8 13c1.3 0 2.5-.33 3.56-.87l2.16 2.16a.75.75 0 1 0 1.06-1.06L2.28 1.22Zm5.1 7.22 1.9 1.9a1 1 0 0 1-1.9-1.9ZM8 4.5c.63 0 1.22.1 1.77.29l1.2 1.2c.1.32.16.66.16 1.01 0 .27-.04.53-.11.78l1.72 1.72c1.2-.86 2.2-1.98 2.76-3.2a.75.75 0 0 0 0-.6C13.9 3.3 11.2 3 8 3c-.4 0-.8.03-1.18.08L8.4 4.53A4 4 0 0 1 8 4.5Z"/></svg>
+          </button>
+        </span>
+      </div>
+
+      <div class="field">
+        <span class="field-label">确认密码</span>
+        <span class="field-input">
+          <span class="field-icon">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4Zm8.25 3.5h-8.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25ZM10.5 6V4a2.5 2.5 0 1 0-5 0v2Z"/></svg>
+          </span>
+          <input type="password" name="password2" autocomplete="new-password">
+        </span>
+      </div>
+    </section>
+
+    <div class="setup-nav">
+      <button type="button" class="btn setup-prev" data-nav="prev">上一步</button>
+      <button type="button" class="btn btn-primary setup-next" data-nav="next">下一步</button>
+      <button type="submit" class="btn btn-primary setup-submit" hidden>立即安装</button>
+    </div>
+    <p class="setup-foot">配置写入程序目录 config.json · 密码仅存哈希 · secret_key 随机生成</p>
+  </form>
+
+</div>
+<script>
+/* 分步向导：面板切换 + 步骤条导航 + 环境检查失败锁定。
+   事件直接挂在当前模板元素上（pjax 换页时整体替换，无泄漏）。 */
+(function () {
+  var wrap = document.querySelector('.setup-wrap');
+  if (!wrap) { return; }
+  var envFail = wrap.getAttribute('data-env-fail') === '1';
+  var cur = parseInt(wrap.getAttribute('data-open-step') || '1', 10);
+  if (envFail) { cur = 1; }  // 环境不通过时强制停在第 1 步
+
+  var panels = wrap.querySelectorAll('[data-panel]');
+  var steps = wrap.querySelectorAll('.setup-step[data-goto]');
+  var prevBtn = wrap.querySelector('.setup-prev');
+  var nextBtn = wrap.querySelector('.setup-next');
+  var submitBtn = wrap.querySelector('.setup-submit');
+
+  function render() {
+    panels.forEach(function (p) {
+      p.hidden = p.getAttribute('data-panel') !== String(cur);
+    });
+    steps.forEach(function (s) {
+      var n = parseInt(s.getAttribute('data-goto'), 10);
+      s.classList.toggle('is-active', n === cur);
+      s.classList.toggle('is-done', n < cur);
+      s.disabled = envFail && n !== 1;
+    });
+    if (prevBtn) { prevBtn.hidden = cur === 1; }
+    if (nextBtn) { nextBtn.hidden = cur === 3; nextBtn.disabled = envFail; }
+    if (submitBtn) { submitBtn.hidden = cur !== 3; }
+  }
+
+  function go(n) {
+    n = parseInt(n, 10);
+    if (envFail && n !== 1) { return; }
+    cur = Math.min(3, Math.max(1, n));
+    render();
+    var head = wrap.querySelector('.setup-head');
+    if (head && head.scrollIntoView) {
+      head.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  steps.forEach(function (s) {
+    s.addEventListener('click', function () {
+      if (s.disabled) { return; }
+      go(s.getAttribute('data-goto'));
+    });
+  });
+  if (nextBtn) { nextBtn.addEventListener('click', function () { go(cur + 1); }); }
+  if (prevBtn) { prevBtn.addEventListener('click', function () { go(cur - 1); }); }
+  render();
+})();
+</script>
+<script>
+/* 密码显隐切换：事件委托，兼容 pjax。 */
+(function () {
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest ? ev.target.closest('.pwd-toggle') : null;
+    if (!btn) { return; }
+    var input = document.getElementById(btn.getAttribute('data-toggle'));
+    if (!input) { return; }
+    var show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.classList.toggle('is-on', show);
+    btn.setAttribute('aria-label', show ? '隐藏密码' : '显示密码');
+    input.focus();
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "admin_layout.html" %}
+{% block admin_content %}
+<div class="admin-card">
+  <h2 class="admin-title">文件锁</h2>
+  <p class="admin-desc">
+    当前被 <code>svn lock</code> 锁定的文件。成员离职或客户端异常时，可在此强制解锁（svnadmin rmlocks）。
+  </p>
+  <table class="user-table">
+    <thead><tr><th>路径</th><th>持有者</th><th>加锁时间</th><th class="col-act">操作</th></tr></thead>
+    <tbody>
+      {% if locks is none %}
+      <tr><td class="empty-row" colspan="4">无法获取锁列表（svnadmin lslocks 执行失败）。</td></tr>
+      {% else %}
+      {% for l in locks %}
+      <tr>
+        <td class="mono">{{ l.path }}</td>
+        <td>{{ l.owner or '--' }}</td>
+        <td>{{ l.created or '--' }}</td>
+        <td class="col-act">
+          <form class="inline-form" method="post"
+                onsubmit="return confirm('强制解锁 {{ l.path }} 吗？持有者的下一次提交会收到锁已失效提示。');">
+            <input type="hidden" name="action" value="unlock">
+            <input type="hidden" name="path" value="{{ l.path }}">
+            <button class="btn btn-danger btn-mini" type="submit">强制解锁</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td class="empty-row" colspan="4">当前没有文件锁。</td></tr>
+      {% endfor %}
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

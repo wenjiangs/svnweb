@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}代码仓库{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <style>
+      {{ pygments_css|safe }}
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='nprogress.css') }}" />
+  </head>
+  <body>
+    <header class="gh-header">
+      <div class="gh-header-inner">
+        <a class="brand" href="{{ url_for('index') if user else url_for('login') }}">
+          <svg class="brand-logo" viewBox="0 0 16 16" width="22" height="22" aria-hidden="true">
+            <path
+              fill="#fff"
+              d="M4.72 3.22a.75.75 0 0 1 1.06 1.06L2.06 8l3.72 3.72a.75.75 0 1 1-1.06 1.06L.47 8.53a.75.75 0 0 1 0-1.06Zm6.56 0a.75.75 0 1 0-1.06 1.06L13.94 8l-3.72 3.72a.75.75 0 1 0 1.06 1.06l4.25-4.25a.75.75 0 0 0 0-1.06Z"
+            />
+          </svg>
+          <span class="brand-text">代码仓库</span>
+          <span class="brand-badge">SVN</span>
+        </a>
+        {% if user %}
+        <nav class="gh-nav" aria-label="全局导航">
+          <a class="gh-nav-link" data-nav="repos" href="{{ url_for('index') }}">仓库</a>
+          <a class="gh-nav-link" data-nav="users" href="{{ url_for('users_admin') }}">用户</a>
+          <a class="gh-nav-link" data-nav="recent" href="{{ url_for('recent_commits') }}">最近提交</a>
+          <a class="gh-nav-link" data-nav="audit" href="{{ url_for('audit_page') }}">审计</a>
+          {% if role == 'admin' %}
+          <a class="gh-nav-link" data-nav="server" href="{{ url_for('server_status') }}">系统</a>
+          {% endif %}
+        </nav>
+        {% endif %}
+        <div class="gh-header-right">
+          {% if user %}
+          <div class="user-menu" id="user-menu">
+            <button type="button" class="user-menu-btn" id="user-menu-btn"
+                    aria-haspopup="true" aria-expanded="false">
+              <span class="avatar">{{ user[0]|upper }}</span>
+              <span class="user-menu-name">{{ user }}</span>
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.939l3.72-3.719a.749.749 0 0 1 1.06 0Z"/></svg>
+            </button>
+            <div class="user-menu-pop" id="user-menu-pop" hidden>
+              <div class="user-menu-role">
+                当前角色：<strong>{{ "管理员" if role == "admin" else "只读" }}</strong>
+                {% if role != "admin" %}<span class="user-menu-role-hint">（仅可浏览）</span>{% endif %}
+              </div>
+              <button type="button" class="user-menu-item" data-modal-open="#pwd-modal">修改密码</button>
+            </div>
+          </div>
+          <a class="header-link" href="{{ url_for('logout') }}" data-no-pjax
+             data-modal-open="#logout-modal">退出</a>
+          {% endif %}
+        </div>
+      </div>
+    </header>
+    <main id="pjax-main" class="{% block main_class %}{% endblock %}">
+      {# 通栏区（仓库头部条等）：留在 #pjax-main 内以便 pjax 一起替换， 但不套 .container，好让底色铺满整个视口宽度。 #}
+      {% block pagehead %}{% endblock %}
+      <div class="{% block container_class %}container{% endblock %}">
+        {% for cat, m in messages %}
+        <div class="flash flash-{{ cat }}">{{ m }}</div>
+        {% endfor %} {% block content %}{% endblock %}
+      </div>
+    </main>
+    <footer class="gh-footer">
+      <div class="gh-footer-text">
+        <span>SVN Web</span> · 基于 Apache Subversion
+        <span class="footer-tz">· 时间均为服务器本地时区（{{ tz_label() }}）</span>
+      </div>
+    </footer>
+    {% if user %}
+    {# 退出确认弹窗：在 #pjax-main 外，pjax 刷新不影响；打开由 base.html 全局委托处理 #}
+    <div class="modal" id="logout-modal" hidden>
+      <div class="modal-backdrop" data-modal-close></div>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title">
+        <div class="modal-head">
+          <h2 class="modal-title" id="logout-modal-title">退出登录</h2>
+          <button type="button" class="modal-x" data-modal-close aria-label="关闭">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="admin-desc">确定要退出当前账号 <span class="mono">{{ user }}</span> 吗？</p>
+          <div class="form-actions">
+            <button class="btn" type="button" data-modal-close>取消</button>
+            <a class="btn btn-danger" href="{{ url_for('logout') }}" data-no-pjax>退出登录</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# 修改自己密码的弹窗：只能改密码，用户名与角色由管理员在「用户 → 网站用户」维护 #}
+    <div class="modal" id="pwd-modal" hidden>
+      <div class="modal-backdrop" data-modal-close></div>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="pwd-modal-title">
+        <div class="modal-head">
+          <h2 class="modal-title" id="pwd-modal-title">修改密码</h2>
+          <button type="button" class="modal-x" data-modal-close aria-label="关闭">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form method="post" action="{{ url_for('account_password') }}" class="user-modal-form">
+            <label class="field">
+              <span class="field-label">当前密码</span>
+              <input type="password" name="current_password" required autocomplete="current-password"
+                     maxlength="100">
+            </label>
+            <label class="field">
+              <span class="field-label">新密码</span>
+              <input type="password" name="new_password" required minlength="6" maxlength="100"
+                     autocomplete="new-password">
+            </label>
+            <label class="field">
+              <span class="field-label">确认新密码</span>
+              <input type="password" name="new_password2" required minlength="6" maxlength="100"
+                     autocomplete="new-password">
+            </label>
+            <p class="clone-hint">仅修改当前账号 <span class="mono">{{ user }}</span> 的登录密码；用户名与角色不可在此修改。</p>
+            <div class="form-actions">
+              <button class="btn" type="button" data-modal-close>取消</button>
+              <button class="btn btn-primary" type="submit">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    <script>
+      /* 复制：非 HTTPS 环境下 navigator.clipboard 不可用，
+   统一走“选中 + execCommand”兜底，兼容 http 访问。 */
+      (function () {
+        function legacyCopy(text, srcEl) {
+          var ok = false;
+          try {
+            if (srcEl && srcEl.select) {
+              srcEl.focus();
+              srcEl.select();
+              if (srcEl.setSelectionRange) {
+                srcEl.setSelectionRange(0, text.length);
+              }
+              ok = document.execCommand('copy');
+            }
+          } catch (e) {
+            ok = false;
+          }
+          if (!ok) {
+            try {
+              var ta = document.createElement('textarea');
+              ta.value = text;
+              ta.setAttribute('readonly', '');
+              ta.style.position = 'fixed';
+              ta.style.top = '-1000px';
+              document.body.appendChild(ta);
+              ta.select();
+              ta.setSelectionRange(0, text.length);
+              ok = document.execCommand('copy');
+              document.body.removeChild(ta);
+            } catch (e) {
+              ok = false;
+            }
+          }
+          return ok;
+        }
+
+        function feedback(btn, ok) {
+          var label = btn.getAttribute('data-label') || btn.textContent;
+          btn.setAttribute('data-label', label);
+          btn.textContent = ok ? '已复制' : '请手动复制';
+          btn.classList.add(ok ? 'copy-ok' : 'copy-fail');
+          window.setTimeout(function () {
+            btn.textContent = label;
+            btn.classList.remove('copy-ok', 'copy-fail');
+          }, 1600);
+        }
+
+        document.addEventListener('click', function (ev) {
+          var btn = ev.target.closest ? ev.target.closest('[data-copy]') : null;
+          if (!btn) {
+            return;
+          }
+          ev.preventDefault();
+          var sel = btn.getAttribute('data-copy');
+          var el = document.querySelector(sel);
+          var text = el ? (el.value !== undefined ? el.value : el.textContent) : '';
+          if (!text) {
+            return;
+          }
+          var done = function (ok) {
+            feedback(btn, ok);
+          };
+          if (window.isSecureContext && navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(
+              function () {
+                done(true);
+              },
+              function () {
+                done(legacyCopy(text, el));
+              }
+            );
+          } else {
+            done(legacyCopy(text, el));
+          }
+        });
+      })();
+
+      /* 弹窗：打开 / 关闭 / Esc / 遮罩点击 / 点击后自动聚焦。
+   事件委托挂在 document 上，pjax 替换 <main> 后依然有效。 */
+      (function () {
+        var lastFocus = null;
+
+        function close(modal) {
+          if (!modal || modal.hidden) return;
+          modal.hidden = true;
+          document.body.classList.remove('modal-open');
+          if (lastFocus && lastFocus.focus) {
+            try {
+              lastFocus.focus();
+            } catch (e) {}
+          }
+          lastFocus = null;
+        }
+
+        function open(modal) {
+          if (!modal) return;
+          lastFocus = document.activeElement;
+          modal.hidden = false;
+          document.body.classList.add('modal-open');
+          var first = modal.querySelector('input, button:not(.modal-x), textarea, a[href]');
+          if (first && first.focus) {
+            try {
+              first.focus();
+            } catch (e) {}
+          }
+        }
+
+        document.addEventListener('click', function (ev) {
+          var t = ev.target;
+          if (!t || !t.closest) {
+            return;
+          }
+          var opener = t.closest('[data-modal-open]');
+          if (opener) {
+            ev.preventDefault();
+            open(document.querySelector(opener.getAttribute('data-modal-open')));
+            return;
+          }
+          if (t.closest('[data-modal-close]')) {
+            ev.preventDefault();
+            close(t.closest('.modal'));
+          }
+        });
+
+        document.addEventListener('keydown', function (ev) {
+          if (ev.key !== 'Escape') {
+            return;
+          }
+          var list = document.querySelectorAll('.modal:not([hidden])');
+          for (var i = 0; i < list.length; i++) {
+            close(list[i]);
+          }
+        });
+
+        // pjax 局部刷新后残留的遮罩要清掉
+        window.addEventListener('pjax:end', function () {
+          document.body.classList.remove('modal-open');
+        });
+      })();
+
+      /* 全局导航高亮：头部条不在 #pjax-main 内，pjax 跳转后需手动刷新高亮。
+         注意：pjax.js 是在 window 上派发 pjax:end，监听必须挂 window（挂
+         document 收不到）。规则：/users/… → 用户，/recent/… → 最近提交，
+         /audit/… → 审计，其余（首页与各仓库页）→ 仓库。 */
+      (function () {
+        function mark() {
+          var seg = location.pathname.split('/')[1];
+          var cur = seg === 'users' ? 'users'
+                  : seg === 'recent' ? 'recent'
+                  : seg === 'audit' ? 'audit'
+                  : seg === 'server' ? 'server'
+                  : 'repos';
+          var links = document.querySelectorAll('.gh-nav-link');
+          for (var i = 0; i < links.length; i++) {
+            links[i].classList.toggle('is-active',
+              links[i].getAttribute('data-nav') === cur);
+          }
+        }
+        mark();
+        window.addEventListener('pjax:end', mark);
+        window.addEventListener('popstate', mark);
+      })();
+
+      /* 头部用户下拉：显示当前角色 + 修改密码入口。
+         头部不在 #pjax-main 内，脚本常驻；pjax 跳转/点击外部/Esc 都收起。 */
+      (function () {
+        var menu = document.getElementById('user-menu');
+        if (!menu) { return; }
+        var btn = document.getElementById('user-menu-btn');
+        var pop = document.getElementById('user-menu-pop');
+        function close() {
+          if (pop.hidden) { return; }
+          pop.hidden = true;
+          btn.setAttribute('aria-expanded', 'false');
+        }
+        btn.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          pop.hidden = !pop.hidden;
+          btn.setAttribute('aria-expanded', String(!pop.hidden));
+        });
+        document.addEventListener('click', function (ev) {
+          if (!menu.contains(ev.target)) { close(); }
+        });
+        /* 点菜单项（如修改密码弹窗）时收起下拉 */
+        pop.addEventListener('click', function (ev) {
+          if (ev.target.closest('[data-modal-open]')) { close(); }
+        });
+        document.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Escape') { close(); }
+        });
+        window.addEventListener('pjax:end', close);
+      })();
+    </script>
+    <script src="{{ url_for('static', filename='nprogress.js') }}"></script>
+    <script src="{{ url_for('static', filename='pjax.js') }}"></script>
+  </body>
+</html>

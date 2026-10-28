@@ -1,0 +1,42 @@
+{% extends "admin_layout.html" %}
+{% block admin_content %}
+<div class="admin-card">
+  <h2 class="admin-title">钩子脚本（hooks）</h2>
+  <p class="admin-desc">
+    编辑仓库 <code>hooks/</code> 目录下的钩子脚本，保存后自动加可执行权限、立即生效（svnserve 无需重启）。
+    选择钩子后点「载入」，没有现成脚本时会预填一个可用的示例模板。
+  </p>
+  <form class="hook-load-form" method="get">
+    <select name="hook">
+      <option value="">选择钩子…</option>
+      {% for h in hooks %}
+      <option value="{{ h.file }}" {% if h.file == sel_hook %}selected{% endif %}>
+        {{ h.file }}（已有{% if not h.exec %}，未加执行位{% endif %}）
+      </option>
+      {% endfor %}
+      {% for hn in hook_names if hn not in hooks|map(attribute='file')|list %}
+      <option value="{{ hn }}" {% if hn == sel_hook %}selected{% endif %}>{{ hn }}（新建）</option>
+      {% endfor %}
+    </select>
+    <button class="btn" type="submit">载入</button>
+  </form>
+  {% if sel_hook %}
+  <form method="post" class="hook-edit-form">
+    <input type="hidden" name="action" value="save_hook">
+    <input type="hidden" name="hook" value="{{ sel_hook }}">
+    <textarea name="content" class="authz-textarea mono" spellcheck="false" rows="14">{{ hook_content }}</textarea>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">保存钩子</button>
+    </div>
+  </form>
+  {% if hooks|selectattr('file', 'equalto', sel_hook)|list %}
+  <form class="inline-form" method="post"
+        onsubmit="return confirm('确定删除钩子 {{ sel_hook }} 吗？');">
+    <input type="hidden" name="action" value="del_hook">
+    <input type="hidden" name="hook" value="{{ sel_hook }}">
+    <button class="btn btn-danger btn-mini" type="submit">删除此钩子</button>
+  </form>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

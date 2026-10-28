@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}登录 · 代码仓库{% endblock %}
+{% block main_class %}login-main{% endblock %}
+{% block container_class %}container-login{% endblock %}
+{% block content %}
+<div class="login-page">
+  <div class="login-panel">
+
+    <div class="login-intro">
+      <div class="login-badge">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.72 3.22a.75.75 0 0 1 1.06 1.06L2.06 8l3.72 3.72a.75.75 0 1 1-1.06 1.06L.47 8.53a.75.75 0 0 1 0-1.06Zm6.56 0a.75.75 0 1 0-1.06 1.06L13.94 8l-3.72 3.72a.75.75 0 1 0 1.06 1.06l4.25-4.25a.75.75 0 0 0 0-1.06Z"/></svg>
+        <span>SVN 版本库</span>
+      </div>
+      <h1 class="login-headline">登录代码仓库</h1>
+      <p class="login-sub">浏览提交历史、对比版本差异、管理仓库权限。</p>
+
+      <ul class="login-features">
+        <li>
+          <span class="feat-icon">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M1.75 1h8.5a.75.75 0 0 1 .53.22l3.5 3.5a.75.75 0 0 1 .22.53v8.5A1.75 1.75 0 0 1 12.75 15.5h-11A1.75 1.75 0 0 1 0 13.75v-11C0 1.78.78 1 1.75 1Zm0 1.5a.25.25 0 0 0-.25.25v11c0 .14.11.25.25.25h11a.25.25 0 0 0 .25-.25V5.56L10.44 2.5H1.75Z"/><path fill="currentColor" d="M4 7.25a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 7.25Zm0 3a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 4 10.25Z"/></svg>
+          </span>
+          <span class="feat-text"><b>提交记录</b>按版本回溯每一次改动</span>
+        </li>
+        <li>
+          <span class="feat-icon">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M1.75 1.5h5.5a.75.75 0 0 1 0 1.5h-5.5a.25.25 0 0 0-.25.25v9.5c0 .14.11.25.25.25h9.5a.25.25 0 0 0 .25-.25v-5.5a.75.75 0 0 1 1.5 0v5.5A1.75 1.75 0 0 1 11.25 14.5h-9.5A1.75 1.75 0 0 1 0 12.75v-9.5C0 2.28.78 1.5 1.75 1.5Z"/><path fill="currentColor" d="M15.28 1.78a.75.75 0 0 0-1.06-1.06L8.5 6.44 7.03 8.97l2.53-1.47 5.72-5.72Z"/></svg>
+          </span>
+          <span class="feat-text"><b>差异对比</b>逐行查看版本间变更</span>
+        </li>
+        <li>
+          <span class="feat-icon">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm0 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13Z"/><path fill="currentColor" d="M8 3.5a.75.75 0 0 1 .75.75v3.69l2.4 1.44a.75.75 0 1 1-.78 1.28l-2.75-1.65A.75.75 0 0 1 7.25 8.4V4.25A.75.75 0 0 1 8 3.5Z"/></svg>
+          </span>
+          <span class="feat-text"><b>历史追溯</b>Blame 定位每行出处</span>
+        </li>
+      </ul>
+
+      <div class="login-hint">
+        <span class="hint-dot"></span>登录后可访问所有已授权仓库
+      </div>
+    </div>
+
+    <div class="login-card">
+      <h2 class="login-title">账号登录</h2>
+      <p class="login-tip">请使用 SVN 账号登录</p>
+
+      {% if error %}<div class="flash flash-error login-flash">{{ error }}</div>{% endif %}
+
+      <form method="post" class="login-form" action="{{ url_for('login') }}{% if next %}?next={{ next|urlencode }}{% endif %}">
+        <label class="field">
+          <span class="field-label">用户名</span>
+          <span class="field-input">
+            <span class="field-icon">
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M10.56 8.5a4.5 4.5 0 1 0-5.12 0A5.5 5.5 0 0 0 2 13.75a.75.75 0 0 0 1.5 0 4 4 0 0 1 9 0 .75.75 0 0 0 1.5 0 5.5 5.5 0 0 0-3.44-5.25ZM8 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"/></svg>
+            </span>
+            <input type="text" name="username" autocomplete="username" placeholder="请输入用户名" autofocus required>
+          </span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">密码</span>
+          <span class="field-input">
+            <span class="field-icon">
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4Zm8.25 3.5h-8.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25ZM10.5 6V4a2.5 2.5 0 1 0-5 0v2Z"/></svg>
+            </span>
+            <input type="password" name="password" id="login-password" autocomplete="current-password" placeholder="请输入密码" required>
+            <button type="button" class="pwd-toggle" data-toggle="login-password" aria-label="显示密码">
+              <svg class="ico-eye" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M8 3C4.5 3 1.7 5.3.2 7.7a.75.75 0 0 0 0 .6C1.7 10.7 4.5 13 8 13s6.3-2.3 7.8-4.7a.75.75 0 0 0 0-.6C14.3 5.3 11.5 3 8 3Zm0 8.5c-2.6 0-4.8-1.6-6.2-3.5C3.2 6.1 5.4 4.5 8 4.5s4.8 1.6 6.2 3.5c-1.4 1.9-3.6 3.5-6.2 3.5Z"/><path fill="currentColor" d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Zm0 3.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>
+              <svg class="ico-eye-off" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M2.28 1.22a.75.75 0 0 0-1.06 1.06l1.9 1.9C1.9 5.06.8 6.3.2 7.7a.75.75 0 0 0 0 .6C1.7 10.7 4.5 13 8 13c1.3 0 2.5-.33 3.56-.87l2.16 2.16a.75.75 0 1 0 1.06-1.06L2.28 1.22Zm5.1 7.22 1.9 1.9a1 1 0 0 1-1.9-1.9ZM8 4.5c.63 0 1.22.1 1.77.29l1.2 1.2c.1.32.16.66.16 1.01 0 .27-.04.53-.11.78l1.72 1.72c1.2-.86 2.2-1.98 2.76-3.2a.75.75 0 0 0 0-.6C13.9 3.3 11.2 3 8 3c-.4 0-.8.03-1.18.08L8.4 4.53A4 4 0 0 1 8 4.5Z"/></svg>
+            </button>
+          </span>
+        </label>
+
+        <button type="submit" class="btn btn-primary btn-block login-submit">登录</button>
+      </form>
+
+      <p class="login-foot">SVN Web · 基于 Apache Subversion</p>
+    </div>
+
+  </div>
+</div>
+<script>
+/* 密码显隐切换：仅在本页生效，不依赖全局脚本。 */
+(function () {
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest ? ev.target.closest('.pwd-toggle') : null;
+    if (!btn) { return; }
+    var input = document.getElementById(btn.getAttribute('data-toggle'));
+    if (!input) { return; }
+    var show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.classList.toggle('is-on', show);
+    btn.setAttribute('aria-label', show ? '隐藏密码' : '显示密码');
+    input.focus();
+  });
+})();
+</script>
+{% endblock %}

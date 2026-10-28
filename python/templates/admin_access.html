@@ -1,0 +1,53 @@
+{% extends "admin_layout.html" %}
+{% block admin_content %}
+<div class="admin-card">
+  <div class="admin-head">
+    <div>
+      <h2 class="admin-title">账号与权限</h2>
+      <p class="admin-desc">账号已集中管理：所有仓库共用一套账号，不再按仓库单独设置。前往「用户管理」可添加、编辑、删除账号并同步所有仓库。</p>
+    </div>
+    <a class="btn btn-primary" href="{{ url_for('users_admin') }}">前往用户管理</a>
+  </div>
+
+  <table class="user-table">
+    <thead><tr><th>本仓库账号（只读）</th><th>权限</th></tr></thead>
+    <tbody>
+      {% for a in accounts %}
+      <tr>
+        <td class="mono">{{ a.user }}</td>
+        <td>
+          {% if a.perm == 'rw' %}
+          <span class="tag perm-tag perm-rw">读写</span>
+          {% elif a.perm == 'r' %}
+          <span class="tag perm-tag perm-r">只读</span>
+          {% elif a.exists %}
+          <span class="tag perm-tag perm-none">无权限</span>
+          {% else %}
+          <span class="tag perm-tag perm-none" title="authz 里有授权记录，但 passwd 中没有这个账号">仅授权未建号</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td class="empty-row" colspan="2">本仓库暂无账号，去「用户管理」添加。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="admin-desc admin-hint">需要细粒度的子目录规则，可用下方高级模式直接编辑 authz 原文。</p>
+</div>
+
+<details class="admin-card adv-authz">
+  <summary>高级模式：直接编辑 authz 原文</summary>
+  <p class="admin-desc">
+    按 SVN authz 语法编辑访问规则，例如：<code>[repo:/trunk]</code>、<code>alice = rw</code>。保存后立即生效。
+    图形界面只管理根节 <code>[/]</code> 与 <code>[groups]</code> 节，这里手动加的子目录规则不会被界面改动。
+    <span class="admin-warn">谨慎修改，格式错误可能导致所有客户端无法访问。</span>
+  </p>
+  <form method="post">
+    <input type="hidden" name="action" value="save_authz">
+    <textarea name="authz" class="authz-textarea mono" spellcheck="false" rows="16">{{ authz }}</textarea>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">保存授权配置</button>
+    </div>
+  </form>
+</details>
+{% endblock %}

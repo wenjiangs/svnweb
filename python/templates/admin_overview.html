@@ -1,0 +1,20 @@
+{% extends "admin_layout.html" %}
+{% block admin_content %}
+<div class="admin-card">
+  <h2 class="admin-title">仓库描述</h2>
+  <p class="admin-desc">一段简短的简介，会显示在首页的仓库列表中。留空则不显示。</p>
+  <form method="post">
+    <input type="hidden" name="action" value="save_desc">
+    <textarea name="desc" class="desc-input" maxlength="200" rows="3"
+          placeholder="例如：公司内部权限管理工具仓库">{{ desc }}</textarea>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">保存描述</button>
+    </div>
+  </form>
+</div>
+
+<div class="admin-card">
+  <h2 class="admin-title">其它设置</h2>
+  <p class="admin-desc">账号权限、用户组、备份、钩子、文件锁与危险操作，请使用左侧导航切换。</p>
+</div>
+{% endblock %}

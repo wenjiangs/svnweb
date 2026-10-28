@@ -1,0 +1,10 @@
+{# 路径面包屑：从 _repohead.html 里拆出来。
+   头部条现在通栏铺满整行，而面包屑描述的是「当前路径」，留在内容列里更合理。 #}
+{% if crumbs %}
+<nav class="breadcrumb">
+  {% for c in crumbs %}
+    {% if c.url %}<a class="crumb" href="{{ c.url }}">{{ c.label }}</a>{% else %}<span class="crumb crumb-cur">{{ c.label }}</span>{% endif %}
+    {% if not loop.last %}<span class="sep">/</span>{% endif %}
+  {% endfor %}
+</nav>
+{% endif %}

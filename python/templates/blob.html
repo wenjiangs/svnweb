@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{{ fname }} · {{ name }}{% endblock %}
+{# 头部条走通栏区（.container 之外）；本页没有侧栏，克隆按钮留在头部条 #}
+{% block pagehead %}{% include "_repohead.html" %}{% endblock %}
+{% block content %}
+{% include "_breadcrumb.html" %}
+{% include "_clonemodal.html" %}
+
+<div class="file-toolbar">
+  <div class="ft-left">
+    <svg class="fi fi-file" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="#57606a" d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"/></svg>
+    <span class="ft-name">{{ fname }}</span>
+    {% if lang_of(fname) %}<span class="tag tag-lang">{{ lang_of(fname) }}</span>{% endif %}
+  </div>
+  <div class="ft-right">
+    <span class="ft-meta">{% if not kind and not too_large %}{{ lines }} 行 · {% endif %}{{ human_size(size) }}</span>
+    {% if not kind %}
+    <a class="btn" href="{{ url_for('blame', name=name, path=path, rev=(rev if rev != head else None)) }}">追溯</a>
+    {% endif %}
+    <a class="btn" href="{{ url_for('versions', name=name, path=path, rev=(rev if rev != head else None)) }}">版本</a>
+    {% if kind %}
+    <a class="btn" href="{{ media_url }}" target="_blank" rel="noopener">新窗口打开</a>
+    {% else %}
+    <a class="btn" href="{{ url_for('raw', name=name, path=path, rev=(rev if rev != head else None)) }}" target="_blank">原始</a>
+    {% endif %}
+    <a class="btn" href="{{ url_for('download', name=name, path=path, rev=(rev if rev != head else None)) }}">下载</a>
+  </div>
+</div>
+
+{% if too_large %}
+<div class="binary-note">
+  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="#57606a" d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v12.5A1.75 1.75 0 0 1 14.25 16H1.75A1.75 1.75 0 0 1 0 14.25ZM6.5 6.5v3h3v-3Z"/></svg>
+  文件过大（{{ human_size(size) }}），为避免占用过多资源，不提供在线预览。
+  <a href="{{ url_for('download', name=name, path=path, rev=(rev if rev != head else None)) }}">下载文件</a>
+</div>
+{% elif kind == 'image' %}
+<div class="media-wrap">
+  <a class="media-open" href="{{ media_url }}" target="_blank" rel="noopener" title="在新窗口打开原图">
+    <img class="media-image" src="{{ media_url }}" alt="{{ fname }}">
+  </a>
+</div>
+<p class="media-meta">{{ human_size(size) }} · 点击图片可在新窗口打开原图</p>
+{% elif kind == 'pdf' %}
+<div class="media-wrap media-wrap-flat">
+  <embed class="media-pdf" src="{{ media_url }}" type="application/pdf">
+</div>
+<p class="media-meta">{{ human_size(size) }} · 若浏览器没有显示，可<a href="{{ media_url }}" target="_blank" rel="noopener">在新窗口打开</a>或直接下载</p>
+{% elif kind == 'video' %}
+<div class="media-wrap media-wrap-flat">
+  <video class="media-player" src="{{ media_url }}" controls preload="metadata"></video>
+</div>
+<p class="media-meta">{{ human_size(size) }} · 不支持拖动进度条，需要时请下载后播放</p>
+{% elif kind == 'audio' %}
+<div class="media-wrap media-wrap-flat">
+  <audio class="media-player media-audio" src="{{ media_url }}" controls preload="metadata"></audio>
+</div>
+<p class="media-meta">{{ human_size(size) }}</p>
+{% elif binary %}
+<div class="binary-note">
+  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="#57606a" d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v12.5A1.75 1.75 0 0 1 14.25 16H1.75A1.75 1.75 0 0 1 0 14.25ZM6.5 6.5v3h3v-3Z"/></svg>
+  二进制文件，无法在线预览。
+  <a href="{{ url_for('download', name=name, path=path, rev=(rev if rev != head else None)) }}">下载文件</a>
+</div>
+{% else %}
+{% if md_html %}
+<div class="file-tabs" id="md-tabs">
+  <button type="button" class="ft-tab active" data-md-tab="preview">预览</button>
+  <button type="button" class="ft-tab" data-md-tab="source">源码</button>
+</div>
+<div class="md-doc md-render" id="md-preview">{{ md_html|safe }}</div>
+<div class="code-wrap md-source-view" id="md-source" hidden>{{ code_html|safe }}</div>
+<script>
+/* 预览/源码切换：监听挂在本页元素上，pjax 替换后随旧 DOM 销毁，不会叠加。 */
+(function () {
+  var tabs = document.getElementById('md-tabs');
+  if (!tabs) { return; }
+  var preview = document.getElementById('md-preview');
+  var source = document.getElementById('md-source');
+  tabs.addEventListener('click', function (ev) {
+    var btn = ev.target.closest ? ev.target.closest('[data-md-tab]') : null;
+    if (!btn) { return; }
+    var which = btn.getAttribute('data-md-tab');
+    var list = tabs.querySelectorAll('[data-md-tab]');
+    for (var i = 0; i < list.length; i++) {
+      list[i].classList.toggle('active', list[i] === btn);
+    }
+    if (preview) { preview.hidden = (which !== 'preview'); }
+    if (source) { source.hidden = (which !== 'source'); }
+  });
+})();
+</script>
+{% else %}
+<div class="code-wrap">
+  {{ code_html|safe }}
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}r{{ info.rev }} 版本详情 · {{ name }}{% endblock %}
+{% block content %}
+<div class="commit-hero">
+  <h1 class="hero-msg{% if not info.msg %} msg-empty{% endif %}">{{ info.msg or '无提交信息' }}</h1>
+  <div class="hero-meta">
+    <span class="rev-badge rev-badge-lg">r{{ info.rev }}</span>
+    <span class="hero-author">{{ info.author or '未知' }}</span>
+    <span class="hero-time">{{ human_time(info.date) }}</span>
+    <span class="hero-sep">·</span>
+    <a class="hero-repo" href="{{ url_for('repo_home', name=name) }}">{{ name }}</a>
+  </div>
+</div>
+
+<div class="section-head">
+  <h2 class="section-title">变更文件 <span class="section-sub">共 {{ changed|length }} 个</span></h2>
+  <span class="section-sub"><span class="add">+{{ adds }}</span> <span class="del">−{{ dels }}</span></span>
+</div>
+
+{% if changed %}
+<table class="changed-files">
+  <thead>
+    <tr>
+      <th class="cf-act">状态</th>
+      <th class="cf-path">文件</th>
+      <th class="cf-counts">变更</th>
+      <th class="cf-op">操作</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in changed %}
+    <tr>
+      <td class="cf-act"><span class="act act-{{ c.action }}">{{ action_label(c.action) }}</span></td>
+      <td class="cf-path">
+        {% if c.path %}
+          <a class="mono" href="{{ url_for('commit_file', name=name, rev=rev, path=c.path) }}"
+             title="查看 {{ c.path }} 的变更详情">{{ c.path }}</a>
+        {% else %}
+          {# 仓库根目录本身（首次导入）：没有可点进的单路径详情 #}
+          <span class="mono">/</span>
+        {% endif %}
+      </td>
+      <td class="cf-counts">
+        {% if c.adds is not none %}
+          <span class="add">+{{ c.adds }}</span><span class="del">−{{ c.dels }}</span>
+        {% else %}
+          <span class="muted">--</span>
+        {% endif %}
+      </td>
+      <td class="cf-op">
+        {% if c.path %}
+        <a class="btn btn-mini" href="{{ url_for('commit_file', name=name, rev=rev, path=c.path) }}"
+           title="单独查看 {{ c.path }} 的变更详情">详情</a>
+        {% else %}
+        {# 仓库根目录本身（首次导入）：没有单路径详情，改为在该版本的文件树里浏览 #}
+        <a class="btn btn-mini" href="{{ url_for('repo_home', name=name, rev=rev) }}"
+           title="在文件浏览器中查看 r{{ rev }} 的内容">浏览</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">该版本没有记录到文件变更</div>
+{% endif %}
+
+<div class="commit-foot">
+  <a class="btn" href="{{ url_for('versions', name=name) }}">← 返回版本列表</a>
+</div>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}{{ path }} · r{{ info.rev }} 变更详情 · {{ name }}{% endblock %}
+{% block content %}
+<div class="cf-hero">
+  <h1 class="cf-title">
+    <span class="act act-{{ action }}">{{ action_label(action) }}</span>
+    <span class="mono cf-title-path">{{ path }}</span>
+    {% if is_dir %}<span class="tag">目录</span>{% endif %}
+  </h1>
+  <div class="hero-meta">
+    <span class="rev-badge rev-badge-lg">r{{ info.rev }}</span>
+    <span class="hero-author">{{ info.author or '未知' }}</span>
+    <span class="hero-time">{{ human_time(info.date) }}</span>
+    <span class="hero-sep">·</span>
+    <a class="hero-repo" href="{{ url_for('repo_home', name=name) }}">{{ name }}</a>
+  </div>
+  <p class="cf-msg{% if not info.msg %} msg-empty{% endif %}">{{ info.msg or '无提交信息' }}</p>
+</div>
+
+<div class="cf-bar">
+  <div class="cf-bar-nav">
+    <a class="btn btn-mini" href="{{ url_for('commit', name=name, rev=rev) }}">← 返回版本详情 r{{ rev }}</a>
+    {% if can_view %}
+    <a class="btn btn-mini" href="{{ url_for('blob', name=name, path=path, rev=(ref_rev if ref_rev != head else None)) }}">
+      {% if action == 'D' %}查看删除前的内容{% else %}查看文件内容{% endif %}
+    </a>
+    {% endif %}
+    {% if can_history %}
+    <a class="btn btn-mini" href="{{ url_for('versions', name=name, path=path, rev=history_rev) }}">该路径的历史版本</a>
+    {% endif %}
+  </div>
+  <span class="cf-bar-counts">
+    <span class="add">+{{ adds }}</span><span class="del">−{{ dels }}</span>
+  </span>
+</div>
+
+<div class="section-head">
+  <h2 class="section-title">
+    变更内容
+    {% if is_dir %}<span class="section-sub">该目录下 {{ files|length }} 个文件有文本改动</span>{% endif %}
+  </h2>
+</div>
+
+{% if is_binary %}
+<div class="cf-note">
+  该文件是二进制类型，SVN 不提供逐行差异（属性变更仍会列出）。
+</div>
+{% endif %}
+
+{% if files %}
+{% if files|length > 1 %}
+<div class="diff-filter">
+  <input type="text" id="diff-filter" placeholder="按文件名过滤 diff…">
+  <span id="diff-filter-count" class="diff-filter-count"></span>
+</div>
+<script>
+(function(){
+  var inp = document.getElementById('diff-filter');
+  if (!inp) return;
+  var blocks = Array.prototype.slice.call(document.querySelectorAll('.diff-file'));
+  var count = document.getElementById('diff-filter-count');
+  inp.addEventListener('input', function(){
+    var q = inp.value.trim().toLowerCase();
+    var shown = 0;
+    blocks.forEach(function(b){
+      var name = (b.querySelector('.mono') || {}).textContent || '';
+      var ok = !q || name.toLowerCase().indexOf(q) !== -1;
+      b.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+    if (count) count.textContent = q ? ('显示 ' + shown + ' / ' + blocks.length) : '';
+  });
+})();
+</script>
+{% endif %}
+
+{% for f in files %}
+<div class="diff-file" id="diff-{{ loop.index0 }}">
+  <div class="diff-file-head">
+    <span class="diff-path"><span class="mono">{{ f.path }}</span></span>
+    <span class="diff-counts"><span class="add">+{{ f.adds }}</span><span class="del">−{{ f.dels }}</span></span>
+  </div>
+  <table class="diff-table">
+    <tbody>
+    {% for t, text in f.lines %}
+      {% if t == 'hunk' %}
+        <tr class="d-hunk"><td class="d-code" colspan="2">{{ text }}</td></tr>
+      {% elif t == 'add' %}
+        <tr class="d-add"><td class="d-sign">+</td><td class="d-code">{{ text }}</td></tr>
+      {% elif t == 'del' %}
+        <tr class="d-del"><td class="d-sign">−</td><td class="d-code">{{ text }}</td></tr>
+      {% elif t == 'meta' %}
+        <tr class="d-meta"><td class="d-code" colspan="2">{{ text }}</td></tr>
+      {% else %}
+        <tr class="d-ctx"><td class="d-sign"></td><td class="d-code">{{ text }}</td></tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+{% else %}
+<div class="empty">
+  {% if err %}
+  读取该路径的差异失败：{{ err }}
+  {% else %}
+  该路径在 r{{ rev }} 里没有可显示的文本改动（可能仅属性变更，或是二进制文件）。
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="commit-foot">
+  <a class="btn" href="{{ url_for('commit', name=name, rev=rev) }}">← 返回版本详情 r{{ rev }}</a>
+  <a class="btn" href="{{ url_for('versions', name=name) }}">版本列表</a>
+</div>
+{% endblock %}

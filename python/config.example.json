@@ -1,0 +1,19 @@
+{
+  "repo_root": "/svn",
+  "username": "admin",
+  "password_hash": "CHANGE-ME-运行 python init_config.py 自动生成",
+  "secret_key": "CHANGE-ME-运行 python init_config.py 自动生成",
+  "cache_ttl": 20,
+  "max_highlight_bytes": 524288,
+  "max_preview_bytes": 5242880,
+  "max_media_bytes": 33554432,
+  "log_page_size": 60,
+  "login_max_fail": 5,
+  "login_lock_seconds": 300,
+  "svn_base": "",
+  "backup_dir": "",
+  "behind_proxy": false,
+  "recent_limit": 60,
+  "recent_per_repo": 40,
+  "web_users": {}
+}

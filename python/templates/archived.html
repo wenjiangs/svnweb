@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}归档仓库 · 代码仓库{% endblock %}
+{% block content %}
+<div class="crumb-bar">
+  <a href="{{ url_for('index') }}">仓库</a>
+  <span class="sep">/</span>
+  <span class="crumb-cur">归档仓库</span>
+</div>
+
+<h1 class="form-title">归档仓库</h1>
+<p class="form-desc">
+  归档的仓库存放在服务端 <code>.archived/</code> 目录，svn:// 已无法访问但数据完整。
+  恢复后回到仓库列表；彻底删除则不可恢复，需输入完整仓库名确认。
+</p>
+
+{% if archived %}
+<div class="admin-card">
+  <div class="admin-head">
+    <div>
+      <h2 class="admin-title">已归档 <span class="repo-count">{{ archived|length }} 个</span></h2>
+    </div>
+  </div>
+  <table class="user-table">
+    <thead><tr><th>仓库名</th><th>归档时间</th><th class="col-act">操作</th></tr></thead>
+    <tbody>
+      {% for a in archived %}
+      <tr>
+        <td class="mono">{{ a.name }}</td>
+        <td>{% if a.ts %}{{ a.ts[:4] }}-{{ a.ts[4:6] }}-{{ a.ts[6:8] }} {{ a.ts[8:10] }}:{{ a.ts[10:12] }}:{{ a.ts[12:14] }}{% else %}--{% endif %}</td>
+        <td class="col-act">
+          <form class="inline-form" method="post">
+            <input type="hidden" name="action" value="restore_repo">
+            <input type="hidden" name="arc" value="{{ a.arc }}">
+            <button class="btn btn-mini" type="submit"
+                    onclick="return confirm('恢复为仓库「{{ a.name }}」？');">恢复</button>
+          </form>
+          <details class="purge-details">
+            <summary class="btn btn-danger btn-mini">彻底删除</summary>
+            <form class="inline-form purge-form" method="post"
+                  onsubmit="return confirm('此操作不可恢复！确定彻底删除归档「{{ a.arc }}」吗？');">
+              <input type="hidden" name="action" value="delete_archived">
+              <input type="hidden" name="arc" value="{{ a.arc }}">
+              <input type="text" name="confirm" required spellcheck="false" autocomplete="off"
+                     placeholder="输入 {{ a.name }} 确认">
+              <button class="btn btn-danger btn-mini" type="submit">确认删除</button>
+            </form>
+          </details>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty">当前没有已归档的仓库。归档入口在各仓库「设置 → 危险操作」。</div>
+{% endif %}
+{% endblock %}

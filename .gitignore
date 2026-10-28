@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# 生产环境临时文件
+*.bak.*
+*.bak
+
+# 敏感配置：包含密码哈希 / secret_key，勿提交（部署时另行提供）
+config.json
+
+# 缓存 / 日志
+*.log
+.cache/
+
+# 本地测试数据与运行期产物
+localrepos/
+backups/
+.archived/
+*.backup.json
+
+# 本地设计快照与工作数据（含真实环境信息，不入公开仓库）
+preview/
+.workbuddy/
+
+# 本目录原为 SVN 工作副本，元数据（含 pristine 历史文件）不入 git
+.svn/

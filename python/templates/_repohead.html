@@ -1,0 +1,26 @@
+{# 仓库头部条：底色铺满整个视口宽度、上边紧贴导航条（无间隙），
+   内容另由 .repo-header-inner 按 .container 的宽度对齐。
+   由 base.html 的 {% block pagehead %} 放在 .container 之外输出。
+   两栏布局的页面（仓库首页 / 版本列表）把「检出代码」挪到了右侧信息栏的「操作」里，
+   由调用方 {% set repo_side_clone = True %} 声明；其余页面仍把检出按钮放在这里。
+   弹窗本体见 _clonemodal.html。 #}
+<div class="repo-header">
+  <div class="repo-header-inner">
+    <div class="repo-title">
+      <svg class="repo-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="#57606a" d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.249.249 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z"/></svg>
+      <a class="repo-title-name" href="{{ url_for('repo_home', name=name) }}">{{ name }}</a>
+      <span class="tag">r{{ head }}</span>
+      {% if rev != head %}<span class="tag tag-warn">历史版本 r{{ rev }}</span>{% endif %}
+    </div>
+    <div class="repo-actions">
+      <a class="btn" href="{{ url_for('versions', name=name, path=((path|default('')) or None), rev=(rev if rev|default(head) != head else None)) }}">版本</a>
+      <a class="btn" href="{{ url_for('repo_admin', name=name) }}">仓库设置</a>
+      {% if not repo_side_clone %}
+      <button type="button" class="btn btn-clone" data-modal-open="#clone-modal">
+        <svg class="btn-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path fill="currentColor" d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg>
+        检出代码
+      </button>
+      {% endif %}
+    </div>
+  </div>
+</div>

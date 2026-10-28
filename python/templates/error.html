@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} · 代码仓库{% endblock %}
+{% block content %}
+<div class="error-page">
+  <div class="error-code">{{ code }}</div>
+  <div class="error-msg">{{ msg }}</div>
+  <a class="btn" href="{{ url_for('index') }}">返回仓库列表</a>
+</div>
+{% endblock %}

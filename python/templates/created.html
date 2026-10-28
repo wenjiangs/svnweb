@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} 创建成功 · 代码仓库{% endblock %}
+{% block content %}
+<div class="crumb-bar">
+  <a href="{{ url_for('index') }}">仓库</a>
+  <span class="sep">/</span>
+  <span class="crumb-cur">{{ name }}</span>
+</div>
+
+<div class="done-head">
+  <span class="done-icon" aria-hidden="true">
+    <svg viewBox="0 0 16 16" width="18" height="18"><path fill="currentColor" d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.5 6.5a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 1 1 1.06-1.06L6.75 10.19l5.97-5.97a.75.75 0 0 1 1.06 0Z"/></svg>
+  </span>
+  <h1 class="form-title done-title">仓库 <span class="mono">{{ name }}</span> 创建成功</h1>
+</div>
+
+<div class="clone-bar">
+  <span class="clone-label">检出地址</span>
+  <div class="clone-field">
+    <input id="clone-url" class="clone-input mono" type="text" readonly
+           spellcheck="false" value="{{ checkout_url(name) }}">
+    <button type="button" class="btn btn-copy" data-copy="#clone-url">复制</button>
+  </div>
+</div>
+<div class="clone-cmd">
+  <code class="mono" id="clone-cmd-text">svn checkout {{ checkout_url(name) }} --username {{ user }}</code>
+  <button type="button" class="btn btn-mini" data-copy="#clone-cmd-text">复制命令</button>
+</div>
+
+<div class="info-card">
+  <h2 class="info-title">该仓库当前为空</h2>
+  <p class="info-text">
+    仓库已创建完成，版本号为 r0，尚无任何内容。检出到本地后提交文件，即可在网页中浏览。
+  </p>
+  <p class="info-text">如需先建立标准目录结构，可在本地执行：</p>
+  <div class="clone-cmd">
+    <code class="mono" id="init-cmd">svn mkdir -m "初始化目录结构" {{ checkout_url(name) }}/trunk {{ checkout_url(name) }}/branches {{ checkout_url(name) }}/tags</code>
+    <button type="button" class="btn btn-mini" data-copy="#init-cmd">复制</button>
+  </div>
+</div>
+
+<div class="form-actions">
+  <a class="btn btn-primary" href="{{ url_for('tree', name=name, path='') }}">进入仓库</a>
+  <a class="btn" href="{{ url_for('new_repo') }}">继续新建</a>
+  <a class="btn" href="{{ url_for('index') }}">返回仓库列表</a>
+</div>
+{% endblock %}

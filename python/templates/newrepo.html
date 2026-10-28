@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}新建仓库 · 代码仓库{% endblock %}
+{% block content %}
+<div class="crumb-bar">
+  <a href="{{ url_for('index') }}">仓库</a>
+  <span class="sep">/</span>
+  <span class="crumb-cur">新建仓库</span>
+</div>
+
+<h1 class="form-title">新建仓库</h1>
+<p class="form-desc">
+  输入一个仓库名即可创建一个空的 Subversion 仓库（当前共 {{ repo_count }} 个仓库）。
+  创建后会自动写入服务端权限配置，沿用已有仓库的账号与授权，可直接用现有 SVN 账号检出。
+</p>
+
+{% if error %}
+<div class="flash flash-error">{{ error }}</div>
+{% endif %}
+
+<form class="repo-form" method="post" autocomplete="off">
+  <div class="field">
+    <label class="field-label" for="name">仓库名</label>
+    <input id="name" name="name" type="text" value="{{ name }}"
+           placeholder="例如 myproject" maxlength="64" required
+           pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,63}" spellcheck="false">
+    <span class="field-hint">
+      只允许字母、数字、点（.）、下划线（_）、连字符（-），必须以字母或数字开头，最长 64 位。
+      建议使用英文，避免中文与空格，以保证各平台客户端兼容。
+    </span>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">创建仓库</button>
+    <a class="btn" href="{{ url_for('index') }}">取消</a>
+  </div>
+</form>
+{% endblock %}

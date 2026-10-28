@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}最近提交{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1 class="page-title">最近提交</h1>
+  <span class="repo-count">{{ entries|length }} 条 · 全部仓库</span>
+</div>
+<table class="ver-table recent-table">
+  <thead>
+    <tr>
+      <th class="col-repo">仓库</th>
+      <th class="col-rev">版本</th>
+      <th class="col-msg">提交信息</th>
+      <th class="col-author">作者</th>
+      <th class="col-time">时间</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+    <tr>
+      <td class="col-repo">
+        <a class="recent-repo" href="{{ url_for('repo_home', name=e.repo) }}">{{ e.repo }}</a>
+      </td>
+      <td class="col-rev">
+        <a class="recent-rev mono" href="{{ url_for('commit', name=e.repo, rev=e.rev) }}">r{{ e.rev }}</a>
+      </td>
+      <td class="col-msg">
+        {% if e.msg %}
+        <span class="recent-msg" title="{{ e.msg }}">{{ e.msg }}</span>
+        {% else %}
+        <span class="msg-empty">无提交信息</span>
+        {% endif %}
+      </td>
+      <td class="col-author">{{ e.author or '--' }}</td>
+      <td class="col-time">{{ rel_time(e.date) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="empty">暂无提交记录</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

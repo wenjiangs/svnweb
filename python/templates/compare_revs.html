@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}版本对比 r{{ a }}…r{{ b }} · {{ name }}{% endblock %}
+{% block content %}
+<div class="compare-head">
+  <h1 class="page-title">
+    版本对比
+    <span class="rev-badge rev-badge-lg">r{{ a }}</span>
+    <span class="compare-vs">…</span>
+    <span class="rev-badge rev-badge-lg">r{{ b }}</span>
+    {% if path %}<span class="mono ver-scope">{{ path }}</span>{% endif %}
+  </h1>
+  <a class="btn" href="{{ url_for('versions', name=name, path=((path|default('')) or None)) }}">← 返回版本列表</a>
+</div>
+
+{% if error %}
+<div class="flash-error">{{ error }}</div>
+{% else %}
+{% if info %}
+<div class="diff-summary">
+  <span class="ds-files">r{{ b }} · {{ info.author or '未知' }}</span>
+  <span class="ds-files">{{ files|length }} 个文件变更</span>
+  <span class="ds-add">+{{ adds }}</span>
+  <span class="ds-del">−{{ dels }}</span>
+  <span class="ver-msg-inline{% if not info.msg %} msg-empty{% endif %}">{{ info.msg or '无提交信息' }}</span>
+</div>
+{% endif %}
+
+{% if files %}
+<div class="diff-filter">
+  <input type="text" id="diff-filter" placeholder="按文件名过滤 diff…">
+  <span id="diff-filter-count" class="diff-filter-count"></span>
+</div>
+{% endif %}
+<script>
+(function(){
+  var inp = document.getElementById('diff-filter');
+  if (!inp) return;
+  var blocks = Array.prototype.slice.call(document.querySelectorAll('.diff-file'));
+  var count = document.getElementById('diff-filter-count');
+  inp.addEventListener('input', function(){
+    var q = inp.value.trim().toLowerCase();
+    var shown = 0;
+    blocks.forEach(function(b){
+      var name = (b.querySelector('.mono') || {}).textContent || '';
+      var ok = !q || name.toLowerCase().indexOf(q) !== -1;
+      b.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+    if (count) count.textContent = q ? ('显示 ' + shown + ' / ' + blocks.length) : '';
+  });
+})();
+</script>
+
+{% for f in files %}
+<div class="diff-file">
+  <div class="diff-file-head">
+    <span class="diff-path"><span class="mono">{{ f.path }}</span></span>
+    <span class="diff-counts"><span class="add">+{{ f.adds }}</span><span class="del">−{{ f.dels }}</span></span>
+  </div>
+  <table class="diff-table">
+    <tbody>
+    {% for t, text in f.lines %}
+      {% if t == 'hunk' %}
+        <tr class="d-hunk"><td class="d-code" colspan="2">{{ text }}</td></tr>
+      {% elif t == 'add' %}
+        <tr class="d-add"><td class="d-sign">+</td><td class="d-code">{{ text }}</td></tr>
+      {% elif t == 'del' %}
+        <tr class="d-del"><td class="d-sign">−</td><td class="d-code">{{ text }}</td></tr>
+      {% elif t == 'meta' %}
+        <tr class="d-meta"><td class="d-code" colspan="2">{{ text }}</td></tr>
+      {% else %}
+        <tr class="d-ctx"><td class="d-sign"></td><td class="d-code">{{ text }}</td></tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty">该版本没有可显示的文本改动（可能仅属性变更或二进制文件）。</div>
+{% endfor %}
+{% endif %}
+
+<div class="commit-foot">
+  <a class="btn" href="{{ url_for('commit', name=name, rev=b) }}">查看 r{{ b }} 详情</a>
+  <a class="btn" href="{{ url_for('versions', name=name, path=((path|default('')) or None)) }}">← 返回版本列表</a>
+</div>
+{% endblock %}

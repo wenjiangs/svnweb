@@ -1,0 +1,148 @@
+{% extends "users_layout.html" %}
+{% block users_content %}
+<div class="page-head">
+  <h1 class="page-title">网站用户</h1>
+  <span class="repo-count">{{ web_accounts|length }} 个账号（含顶层管理员）</span>
+  <div class="page-head-actions">
+    <button type="button" class="btn btn-primary" data-modal-open="#webuser-modal" data-web-add>添加网站账号</button>
+  </div>
+</div>
+<p class="admin-desc page-sub">
+  浏览器登录本站用的账号，保存在服务端 <code>config.json</code>（<code>web_users</code>），
+  与「SVN 用户」相互独立。
+  <strong>管理员</strong>可使用全部管理功能（建仓、用户、设置、审计等）；
+  <strong>只读</strong>仅能浏览仓库内容与统计。
+  修改自己账号的密码请用右上角头像菜单。
+</p>
+
+<div class="admin-card" id="web-users-card">
+  <table class="user-table">
+    <thead><tr><th>用户名</th><th>角色</th><th class="col-act">操作</th></tr></thead>
+    <tbody>
+      {% for a in web_accounts %}
+      <tr>
+        <td class="mono">{{ a.name }}{% if a.self %} <span class="muted">（当前登录）</span>{% endif %}</td>
+        <td>
+          {% if a.role == 'admin' %}
+          <span class="tag perm-tag perm-rw">管理员</span>
+          {% else %}
+          <span class="tag perm-tag perm-r">只读</span>
+          {% endif %}
+        </td>
+        <td class="col-act">
+          {% if a.toplevel %}
+          <span class="muted" title="config.json 顶层的引导账号：未配置任何网站账号时用它登录；密码在右上角头像菜单修改">顶层账号 · 密码见头像菜单</span>
+          {% else %}
+          <button type="button" class="btn btn-mini" data-modal-open="#webuser-modal"
+                  data-web-edit="{{ a.name }}" data-web-role="{{ a.role }}">编辑</button>
+          {% if not a.self %}
+          <form class="inline-form" method="post"
+                onsubmit="return confirm('确定删除网站账号 {{ a.name }} 吗？该账号将无法登录本站（不影响同名 SVN 账号）。');">
+            <input type="hidden" name="action" value="del_web_user">
+            <input type="hidden" name="username" value="{{ a.name }}">
+            <button class="btn btn-danger btn-mini" type="submit">删除</button>
+          </form>
+          {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="admin-desc admin-hint">
+    顶层账号是兜底入口：即使所有网站账号都不可用，它始终可以登录本站。
+    自己的角色不可改为只读、当前登录账号不可删除，且至少保留一个管理员。
+  </p>
+</div>
+
+{# 添加 / 编辑网站账号弹窗：编辑按钮经 data-web-edit / data-web-role 预填 #}
+<div class="modal" id="webuser-modal" hidden>
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="webuser-modal-title">
+    <div class="modal-head">
+      <h2 class="modal-title" id="webuser-modal-title">添加网站账号</h2>
+      <button type="button" class="modal-x" data-modal-close aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <form method="post" class="user-modal-form">
+        <input type="hidden" name="action" value="save_web_user">
+        <label class="field">
+          <span class="field-label">用户名</span>
+          <input type="text" name="username" id="webuser-name-input" required maxlength="64"
+                 pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,63}" spellcheck="false">
+        </label>
+        <fieldset class="perm-fieldset">
+          <legend class="field-label">角色</legend>
+          <label class="perm-opt"><input type="radio" name="role" value="admin" checked>管理员（全部管理功能）</label>
+          <label class="perm-opt"><input type="radio" name="role" value="viewer">只读（仅浏览）</label>
+        </fieldset>
+        <label class="field">
+          <span class="field-label">密码</span>
+          <input type="password" name="password" id="webuser-pw-input" autocomplete="new-password"
+                 minlength="6" maxlength="100">
+        </label>
+        <label class="field">
+          <span class="field-label">确认密码</span>
+          <input type="password" name="password2" autocomplete="new-password"
+                 maxlength="100">
+        </label>
+        <p class="clone-hint" id="webuser-modal-hint"></p>
+        <div class="form-actions">
+          <button class="btn" type="button" data-modal-close>取消</button>
+          <button class="btn btn-primary" type="submit">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 网站账号弹窗预填：监听挂在本卡片/弹窗元素上，pjax 替换 #pjax-main 后随旧 DOM 销毁。 */
+(function () {
+  var root = document.getElementById('web-users-card');
+  var modal = document.getElementById('webuser-modal');
+  if (!root || !modal) { return; }
+  var title = document.getElementById('webuser-modal-title');
+  var nameInput = document.getElementById('webuser-name-input');
+  var pw = document.getElementById('webuser-pw-input');
+  var pw2 = modal.querySelector('input[name="password2"]');
+  var hint = document.getElementById('webuser-modal-hint');
+
+  function setRole(val) {
+    var radios = modal.querySelectorAll('input[type="radio"][name="role"]');
+    for (var i = 0; i < radios.length; i++) {
+      radios[i].checked = (radios[i].value === val);
+    }
+  }
+
+  root.addEventListener('click', function (ev) {
+    var t = ev.target.closest ? ev.target : null;
+    if (!t) { return; }
+    if (t.closest('[data-web-add]')) {
+      title.textContent = '添加网站账号';
+      nameInput.readOnly = false;
+      nameInput.value = '';
+      pw.value = '';
+      if (pw2) { pw2.value = ''; }
+      setRole('viewer');
+      pw.required = true;
+      if (hint) { hint.textContent = '新账号必须设置密码（6-100 位）；保存后立即可用，与 SVN 账号互不影响。'; }
+      return;
+    }
+    var btn = t.closest('[data-web-edit]');
+    if (btn) {
+      title.textContent = '编辑网站账号';
+      nameInput.readOnly = true;
+      nameInput.value = btn.getAttribute('data-web-edit');
+      setRole(btn.getAttribute('data-web-role') || 'viewer');
+      pw.value = '';
+      if (pw2) { pw2.value = ''; }
+      pw.required = false;
+      if (hint) { hint.textContent = '编辑时用户名不可改；密码留空表示不修改；角色按上面选择保存。'; }
+    }
+  });
+})();
+</script>
+{% endblock %}

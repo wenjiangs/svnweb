@@ -1,0 +1,56 @@
+{% extends "admin_layout.html" %}
+{% block admin_content %}
+<div class="admin-card">
+  <div class="admin-head">
+    <div>
+      <h2 class="admin-title">备份（svnadmin dump）</h2>
+      <p class="admin-desc">
+        生成完整历史转储文件，可用于迁移或灾备。大仓库耗时较久，任务在后台执行，完成后刷新本页查看。
+        存放目录由 config.json 的 <code>backup_dir</code> 配置（默认程序目录下 <code>backups/</code>）。
+      </p>
+    </div>
+    <form method="post">
+      <input type="hidden" name="action" value="start_backup">
+      <button class="btn btn-primary" type="submit"
+              onclick="return confirm('开始备份该仓库吗？大仓库可能需要较长时间与磁盘空间。');">
+        立即备份
+      </button>
+    </form>
+  </div>
+
+  {% if backup_state %}
+  <p class="admin-desc">
+    {% if backup_state.status == 'running' %}
+    <span class="tag tag-warn">备份进行中…</span> 完成后刷新本页。
+    {% elif backup_state.status == 'done' %}
+    <span class="tag perm-tag perm-rw">上次完成</span> {{ backup_state.ts }}
+    {% else %}
+    <span class="tag perm-tag perm-none">上次失败</span> {{ backup_state.error }}
+    {% endif %}
+  </p>
+  {% endif %}
+
+  <table class="user-table">
+    <thead><tr><th>备份文件</th><th>大小</th><th class="col-act">操作</th></tr></thead>
+    <tbody>
+      {% for b in backups %}
+      <tr>
+        <td class="mono">{{ b.file }}</td>
+        <td>{{ human_size(b.size) }}</td>
+        <td class="col-act">
+          <a class="btn btn-mini" href="{{ url_for('backup_download', name=name, fname=b.file) }}" download>下载</a>
+          <form class="inline-form" method="post"
+                onsubmit="return confirm('确定删除备份 {{ b.file }} 吗？');">
+            <input type="hidden" name="action" value="del_backup">
+            <input type="hidden" name="file" value="{{ b.file }}">
+            <button class="btn btn-danger btn-mini" type="submit">删除</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td class="empty-row" colspan="3">暂无备份文件。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

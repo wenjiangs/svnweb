@@ -1,0 +1,39 @@
+{% extends "admin_layout.html" %}
+{% block admin_content %}
+<div class="admin-card danger-zone">
+  <h2 class="admin-title">危险操作</h2>
+  <p class="admin-desc">
+    重命名会改变检出地址（客户端需重新指向新 URL）；归档不是删除，
+    仓库会移入 <code>.archived/</code> 并停止 svn:// 访问，可随时在<a href="{{ url_for('archived_page') }}">归档仓库</a>页恢复。
+    <span class="admin-warn">彻底删除仅针对已归档的仓库，且不可恢复。</span>
+  </p>
+
+  <div class="danger-row">
+    <form method="post" class="danger-form">
+      <input type="hidden" name="action" value="rename_repo">
+      <label class="field">
+        <span class="field-label">重命名为</span>
+        <input type="text" name="new_name" maxlength="64" required
+               pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,63}"
+               placeholder="新仓库名" spellcheck="false">
+      </label>
+      <button class="btn" type="submit">重命名仓库</button>
+    </form>
+  </div>
+
+  <div class="danger-row">
+    <form method="post" class="danger-form" id="archive-form">
+      <input type="hidden" name="action" value="archive_repo">
+      <label class="field">
+        <span class="field-label">输入 <span class="mono">{{ name }}</span> 以确认归档</span>
+        <input type="text" name="confirm" required spellcheck="false"
+               autocomplete="off" placeholder="{{ name }}">
+      </label>
+      <button class="btn btn-danger" type="submit"
+              onclick="return confirm('归档后仓库将立即停止 svn:// 访问，确定继续吗？');">
+        归档仓库
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
