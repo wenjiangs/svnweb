@@ -130,6 +130,12 @@ wget -O install.sh https://raw.githubusercontent.com/wenjiangs/svnweb/main/deplo
 bash install.sh
 ```
 
+> GitHub 访问受限的服务器可用加速镜像下载脚本与代码包（脚本内置同样的镜像回退）：
+>
+> ```bash
+> wget -O install.sh https://ghfast.top/https://raw.githubusercontent.com/wenjiangs/svnweb/main/deploy/install.sh
+> ```
+
 脚本会先做**纯只读环境检查**（Python ≥ 3.8 与 venv/pip、svn/svnadmin/svnlook、端口、
 权限、systemd），**任何一项不满足即停止安装，不在系统上产生任何文件**；检查通过后自动
 下载代码 → 安装到 `/opt/svnweb` → 创建 venv 装依赖 → 初始化 `config.json` →

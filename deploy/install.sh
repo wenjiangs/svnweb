@@ -5,7 +5,9 @@
 # 用法（目标服务器上执行）：
 #   wget -O install.sh https://raw.githubusercontent.com/wenjiangs/svnweb/main/deploy/install.sh
 #   bash install.sh
-#   （不传参数时自动下载 GitHub main 分支代码包；也可显式指定其他地址）
+#   （不传参数时自动下载 GitHub main 分支代码包，直连失败自动切换加速镜像；
+#    GitHub 访问受限的环境可用镜像下载脚本：）
+#   wget -O install.sh https://ghfast.top/https://raw.githubusercontent.com/wenjiangs/svnweb/main/deploy/install.sh
 #   bash install.sh https://example.com/svnweb-python.tar.gz
 #   bash install.sh /path/to/svnweb-python.tar.gz        # 本地代码包
 #
@@ -34,6 +36,8 @@ set -u
 
 # ---------------------------------------------------------------- 默认配置
 SVNWEB_PKG_URL="https://github.com/wenjiangs/svnweb/archive/refs/heads/main.tar.gz"  # 默认：GitHub main 分支
+# GitHub 直连失败时依次尝试的加速镜像（对 github.com 地址加前缀；国内服务器实测可用）
+PKG_URL_MIRRORS="https://ghfast.top/ https://gh-proxy.com/ https://ghproxy.net/"
 INSTALL_DIR="${SVNWEB_INSTALL_DIR:-/opt/svnweb}"
 WEB_PORT=37245
 SVN_PORT=3690
@@ -319,10 +323,29 @@ else
     title "下载代码包"
     PKG_FILE="$TMP_DIR/svnweb.$EXT"
     case "$PKG_SOURCE" in
-        http://*|https://*) fetch_to "$PKG_SOURCE" "$PKG_FILE" || die "代码包下载失败：$PKG_SOURCE" ;;
-        *)                  cp "$PKG_SOURCE" "$PKG_FILE" || die "代码包复制失败：$PKG_SOURCE" ;;
+        http://*|https://*)
+            # 构造候选列表：原始地址优先，GitHub 地址失败后依次尝试镜像前缀
+            CANDIDATES="$PKG_SOURCE"
+            case "$PKG_SOURCE" in
+                *github.com/*|*githubusercontent.com/*)
+                    for m in $PKG_URL_MIRRORS; do
+                        CANDIDATES="$CANDIDATES $m$PKG_SOURCE"
+                    done
+                    ;;
+            esac
+            DL_OK=0
+            for cand in $CANDIDATES; do
+                if fetch_to "$cand" "$PKG_FILE"; then
+                    ok "下载完成：$cand（$(du -h "$PKG_FILE" | cut -f1)）"
+                    DL_OK=1
+                    break
+                fi
+                printf "  ${C_Y}[提示]${C_0} 该地址下载失败，尝试下一个……\n"
+            done
+            [ "$DL_OK" = "1" ] || die "代码包下载失败（已尝试 $CANDIDATES）"
+            ;;
+        *) cp "$PKG_SOURCE" "$PKG_FILE" || die "代码包复制失败：$PKG_SOURCE" ;;
     esac
-    ok "就绪：$(du -h "$PKG_FILE" 2>/dev/null | cut -f1)"
 
     title "解压代码包"
     EXTRACT_DIR="$TMP_DIR/extract"
