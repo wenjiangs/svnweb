@@ -58,8 +58,7 @@ svnWeb/
 │   └── nginx-svnweb.conf.example  # nginx HTTPS 反代示例
 ├── python/                 # 程序本体
 │   ├── app.py              # 全部后端逻辑（单文件应用）
-│   ├── init_config.py      # 可选：命令行交互式初始化（生成 secret_key 与密码哈希）
-│   ├── seed_demo.py        # 可选：一键生成两个演示仓库（本地预览 / 截图用）
+│   ├── init_config.py      # 可选：命令行交互式初始化/重置（生成 secret_key 与密码哈希；日常首次初始化用 Web 安装向导）
 │   ├── config.example.json # 配置模板（secret_key / password_hash 均为占位符）
 │   ├── requirements.txt    # Python 依赖（Flask / Pygments / waitress）
 │   ├── static/
@@ -124,6 +123,32 @@ svnWeb/
 
 前提：机器上已安装 **Subversion**（提供 `svn` / `svnlook` / `svnadmin`）与 **Python ≥ 3.8**。
 
+### 一键安装（Linux，推荐）
+
+```bash
+wget -O install.sh https://raw.githubusercontent.com/wenjiangs/svnweb/main/deploy/install.sh
+bash install.sh
+```
+
+脚本会先做**纯只读环境检查**（Python ≥ 3.8 与 venv/pip、svn/svnadmin/svnlook、端口、
+权限、systemd），**任何一项不满足即停止安装，不在系统上产生任何文件**；检查通过后自动
+下载代码 → 安装到 `/opt/svnweb` → 创建 venv 装依赖 → 初始化 `config.json` →
+注册并启动 `systemd` 服务 `svnweb`，最后做 `/healthz` 健康自检。
+
+常用变体：
+
+```bash
+bash install.sh --dir /opt/svnweb --port 37245          # 自定义目录与端口
+bash install.sh /path/to/svnweb-python.tar.gz           # 使用本地代码包（离线安装）
+bash install.sh --no-service                            # 只装文件，不创建 systemd 服务
+
+# 无人值守（免交互向导）：
+SVNWEB_REPO_ROOT=/svn SVNWEB_ADMIN_PASSWORD='你的密码(≥6位)' \
+  bash install.sh --non-interactive
+```
+
+### 手动安装
+
 ```bash
 # 0) 环境检查（可选但推荐：Python/SVN 工具链、端口、仓库根、依赖逐项体检）
 #    Linux:   bash deploy/check_env.sh [svn端口]      # 端口默认 3690
@@ -131,7 +156,7 @@ svnWeb/
 #    自定义了 svn 端口就把端口传进去；脚本会提示检出地址前缀该怎么配
 
 # 1) 获取源码
-git clone <本仓库地址> && cd svnWeb/python
+git clone https://github.com/wenjiangs/svnweb.git && cd svnweb/python
 
 # 2) 虚拟环境 + 依赖
 python3 -m venv venv
