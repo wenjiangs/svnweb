@@ -143,9 +143,12 @@ a:hover {
   color: var(--fg-subtle);
 }
 .user-menu-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   width: 100%;
   text-align: left;
+  text-decoration: none;
   background: none;
   border: none;
   padding: 7px 10px;
@@ -155,11 +158,17 @@ a:hover {
   color: var(--fg);
   cursor: pointer;
 }
+.user-menu-item svg {
+  color: var(--fg-muted);
+}
 .user-menu-item:hover {
   background: var(--canvas-subtle);
 }
 .header-link {
   color: #c9d1d9;
+}
+.gh-header-right .header-link {
+  margin-left: 10px;
 }
 .avatar {
   display: inline-flex;
@@ -3780,4 +3789,53 @@ table.ver-table {
 .root-form .btn {
   display: inline-block;
   vertical-align: middle;
+}
+
+/* ------------------------------------------------- 设置页 · 站点运行参数 */
+.site-form { margin-top: 6px; }
+.site-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.site-item { display: flex; flex-direction: column; }
+.site-item .field-label { margin: 0 0 4px; }
+.site-item input[type='number'] {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--fg);
+}
+.site-item input[type='number']:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
+}
+.site-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.site-item em, .site-check em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--fg-subtle);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+}
+.site-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.site-check input { margin-top: 3px; }
+@media (max-width: 760px) {
+  .site-grid { grid-template-columns: 1fr; }
 }

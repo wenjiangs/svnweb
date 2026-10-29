@@ -1,0 +1,187 @@
+{% extends "users_layout.html" %}
+{% block users_content %}
+<div class="page-head">
+  <h1 class="page-title">用户组</h1>
+  <span class="repo-count">{{ groups|length }} 个组 · 同步 {{ repo_count }} 个仓库</span>
+  <div class="page-head-actions">
+    {% if has_perm('user_manage') %}
+    <button type="button" class="btn btn-primary" data-modal-open="#group-modal" data-gadd>新增用户组</button>
+    {% endif %}
+  </div>
+</div>
+<p class="admin-desc page-sub">
+  集中管理所有仓库的用户组：组定义写入每个仓库 <code>authz</code> 的 <code>[groups]</code> 节，
+  根节 <code>[/]</code> 权限按仓库逐个设置，保存后立即对 svn:// 客户端生效（svnserve 无需重启）。
+  成员以英文逗号分隔，以 <code>@</code> 开头表示引用其他组。
+</p>
+
+<div class="admin-card" id="groups-card">
+  <table class="user-table group-table">
+    <thead><tr><th>组名</th><th>成员</th><th>各仓库权限</th><th class="col-act">操作</th></tr></thead>
+    <tbody>
+      {% for g in groups %}
+      <tr>
+        <td class="mono">@{{ g.name }}</td>
+        <td class="mono group-members-cell" title="{{ g.members_text or '各仓库定义不一致' }}">
+          {{ g.members_text if g.members_text != none else '—' }}
+          {% if g.members_conflict %}
+          <span class="tag tag-warn" title="该组在各仓库 [groups] 中的成员不一致，重新保存一次即可同步">定义不一致</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if g.perm_label == 'rw' %}
+          <span class="tag perm-tag perm-rw">全部仓库 · 读写</span>
+          {% elif g.perm_label == 'r' %}
+          <span class="tag perm-tag perm-r">全部仓库 · 只读</span>
+          {% elif g.perm_label == 'none' %}
+          <span class="tag perm-tag perm-none">全部仓库 · 未授权</span>
+          {% else %}
+          <span class="perm-mixed" title="{{ g.perm_detail }}">
+            {% for lbl, n in g.perm_counts %}{{ lbl }}×{{ n }}{% if not loop.last %} · {% endif %}{% endfor %}
+          </span>
+          {% endif %}
+        </td>
+        <td class="col-act">
+          {% if has_perm('user_manage') %}
+          <button type="button" class="btn btn-mini" data-modal-open="#group-modal"
+                  data-gedit="{{ g.name }}" data-members="{{ g.members_text or '' }}"
+                  data-perms='{{ g.perms|tojson }}'>编辑</button>
+          <form class="inline-form" method="post"
+                onsubmit="return confirm('确定删除用户组 @{{ g.name }} 吗？将从所有仓库移除组定义与根节授权。');">
+            <input type="hidden" name="action" value="del_group">
+            <input type="hidden" name="group" value="{{ g.name }}">
+            <button class="btn btn-danger btn-mini" type="submit">删除</button>
+          </form>
+          {% else %}
+          <span class="muted">只读</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td class="empty-row" colspan="4">暂无用户组{% if has_perm('user_manage') %}，点右上角「新增用户组」创建{% endif %}。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="admin-desc admin-hint">
+    删除组时，各仓库根节的 <code>@组名</code> 授权行会一并清理；子目录规则里的引用请到各仓库设置页的「权限文件」高级模式手动处理。
+  </p>
+</div>
+
+{# 新增 / 编辑用户组共用一个弹窗：编辑按钮经 data-gedit / data-perms 预填 #}
+<div class="modal" id="group-modal" hidden>
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="group-modal-title">
+    <div class="modal-head">
+      <h2 class="modal-title" id="group-modal-title">新增用户组</h2>
+      <button type="button" class="modal-x" data-modal-close aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <form method="post" class="user-modal-form" id="group-form">
+        <input type="hidden" name="action" value="save_group">
+        <label class="field">
+          <span class="field-label">组名</span>
+          <input type="text" name="group" id="group-name-input" required maxlength="64"
+                 placeholder="例如 developers" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,63}"
+                 spellcheck="false">
+        </label>
+        <label class="field">
+          <span class="field-label">成员（逗号分隔，@ 开头为子组）</span>
+          <input type="text" name="members" id="group-members-input" required
+                 placeholder="alice, bob, @qa" spellcheck="false">
+        </label>
+        <fieldset class="perm-fieldset perm-matrix">
+          <legend class="field-label">各仓库根节权限</legend>
+          <div class="perm-bulk">
+            <span>全部设为</span>
+            <button type="button" class="btn btn-mini" data-bulk="rw">读写</button>
+            <button type="button" class="btn btn-mini" data-bulk="r">只读</button>
+            <button type="button" class="btn btn-mini" data-bulk="none">未授权</button>
+          </div>
+          {% for r in repos %}
+          <div class="perm-row">
+            <span class="perm-repo mono">{{ r }}</span>
+            <span class="perm-opts">
+              <label class="perm-opt"><input type="radio" name="perm_{{ r }}" value="rw"> 读写</label>
+              <label class="perm-opt"><input type="radio" name="perm_{{ r }}" value="r"> 只读</label>
+              <label class="perm-opt"><input type="radio" name="perm_{{ r }}" value="none"> 无</label>
+            </span>
+          </div>
+          {% else %}
+          <p class="admin-desc">未发现任何仓库，组将在仓库创建后生效。</p>
+          {% endfor %}
+        </fieldset>
+        <p class="clone-hint" id="group-modal-hint"></p>
+        <div class="form-actions">
+          <button class="btn" type="button" data-modal-close>取消</button>
+          <button class="btn btn-primary" type="submit" id="group-submit">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 用户组弹窗预填：监听挂在本卡片/弹窗元素上，pjax 替换 #pjax-main 后随旧 DOM 销毁。 */
+(function () {
+  var root = document.getElementById('groups-card');
+  var modal = document.getElementById('group-modal');
+  if (!root || !modal) { return; }
+  var form = document.getElementById('group-form');
+  var title = document.getElementById('group-modal-title');
+  var nameInput = document.getElementById('group-name-input');
+  var membersInput = document.getElementById('group-members-input');
+  var submit = document.getElementById('group-submit');
+  var hint = document.getElementById('group-modal-hint');
+
+  function setAllPerms(val) {
+    var radios = modal.querySelectorAll('input[type="radio"][name^="perm_"]');
+    for (var i = 0; i < radios.length; i++) {
+      radios[i].checked = (radios[i].value === val);
+    }
+  }
+
+  function setPermMap(map) {
+    var radios = modal.querySelectorAll('input[type="radio"][name^="perm_"]');
+    for (var i = 0; i < radios.length; i++) {
+      var repo = radios[i].name.slice(5);  /* 去掉 perm_ 前缀 */
+      var want = map[repo] || 'none';
+      radios[i].checked = (radios[i].value === want);
+    }
+  }
+
+  root.addEventListener('click', function (ev) {
+    var t = ev.target.closest ? ev.target : null;
+    if (!t) { return; }
+    if (t.closest('[data-gadd]')) {
+      title.textContent = '新增用户组';
+      nameInput.readOnly = false;
+      nameInput.value = '';
+      membersInput.value = '';
+      setAllPerms('none');
+      if (hint) { hint.textContent = '保存后组定义写入所有仓库的 [groups] 节，根节权限按上面的仓库逐个生效。'; }
+      return;
+    }
+    var btn = t.closest('[data-gedit]');
+    if (btn) {
+      var map = {};
+      try { map = JSON.parse(btn.getAttribute('data-perms') || '{}') || {}; } catch (e) {}
+      title.textContent = '编辑用户组 @' + btn.getAttribute('data-gedit');
+      nameInput.readOnly = true;
+      nameInput.value = btn.getAttribute('data-gedit');
+      membersInput.value = btn.getAttribute('data-members') || '';
+      setPermMap(map);
+      if (hint) { hint.textContent = '编辑时组名不可改；成员以英文逗号分隔，@ 开头为子组；权限按仓库单独设置。'; }
+    }
+  });
+
+  modal.addEventListener('click', function (ev) {
+    var b = ev.target.closest ? ev.target.closest('[data-bulk]') : null;
+    if (!b) { return; }
+    ev.preventDefault();
+    setAllPerms(b.getAttribute('data-bulk'));
+  });
+})();
+</script>
+{% endblock %}

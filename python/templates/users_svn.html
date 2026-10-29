@@ -1,16 +1,18 @@
 {% extends "users_layout.html" %}
 {% block users_content %}
 <div class="page-head">
-  <h1 class="page-title">SVN 用户</h1>
+  <h1 class="page-title">用户</h1>
   <span class="repo-count">{{ accounts|length }} 个账号 · 同步 {{ repo_count }} 个仓库</span>
   <div class="page-head-actions">
+    {% if has_perm('user_manage') %}
     <button type="button" class="btn btn-primary" data-modal-open="#user-modal" data-add>添加用户</button>
+    {% endif %}
   </div>
 </div>
 <p class="admin-desc page-sub">
   集中管理所有 SVN 仓库的访问账号：账号写入每个仓库的 <code>conf/passwd</code>，
   权限按仓库逐个写入对应 <code>authz</code> 根节 <code>[/]</code>，保存后立即对 svn:// 客户端生效（svnserve 无需重启）。
-  浏览器登录本站的账号见左侧「网站用户」。
+  浏览器登录本站的网站账号与角色在「设置」页管理。
 </p>
 
 <div class="admin-card" id="users-card">
@@ -43,6 +45,7 @@
           {% endif %}
         </td>
         <td class="col-act">
+          {% if has_perm('user_manage') %}
           <button type="button" class="btn btn-mini" data-modal-open="#user-modal"
                   data-edit="{{ a.user }}" data-perms='{{ a.perms|tojson }}'>编辑</button>
           <form class="inline-form" method="post"
@@ -51,10 +54,13 @@
             <input type="hidden" name="username" value="{{ a.user }}">
             <button class="btn btn-danger btn-mini" type="submit">删除</button>
           </form>
+          {% else %}
+          <span class="muted">只读</span>
+          {% endif %}
         </td>
       </tr>
       {% else %}
-      <tr><td class="empty-row" colspan="4">暂无账号，点右上角「添加用户」创建。</td></tr>
+      <tr><td class="empty-row" colspan="4">暂无账号{% if has_perm('user_manage') %}，点右上角「添加用户」创建{% endif %}。</td></tr>
       {% endfor %}
     </tbody>
   </table>

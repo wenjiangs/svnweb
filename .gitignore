@@ -27,3 +27,6 @@ preview/
 
 # 本目录原为 SVN 工作副本，元数据（含 pristine 历史文件）不入 git
 .svn/
+
+text.txt
+runPyVer.bat

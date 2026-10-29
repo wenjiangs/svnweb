@@ -1,0 +1,22 @@
+{% extends "admin_layout.html" %}
+{% block admin_content %}
+<div class="admin-card">
+  <div class="admin-head">
+    <div>
+      <h2 class="admin-title">权限文件（authz）</h2>
+      <p class="admin-desc">
+      按 SVN authz 语法编辑访问规则，例如：<code>[repo:/trunk]</code>、<code>alice = rw</code>。保存后立即生效。
+      用户管理页只维护根节 <code>[/]</code> 与 <code>[groups]</code> 节，这里手动加的子目录规则不会被界面改动。
+      <span class="admin-warn">谨慎修改，格式错误可能导致所有客户端无法访问。</span>
+    </p>
+    <form method="post">
+      <input type="hidden" name="action" value="save_authz">
+      <textarea name="authz" class="authz-textarea mono" spellcheck="false" rows="16">{{ authz }}</textarea>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">保存授权配置</button>
+      </div>
+    </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

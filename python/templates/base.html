@@ -26,31 +26,38 @@
         {% if user %}
         <nav class="gh-nav" aria-label="全局导航">
           <a class="gh-nav-link" data-nav="repos" href="{{ url_for('index') }}">仓库</a>
+          {% if has_perm('user_manage') %}
           <a class="gh-nav-link" data-nav="users" href="{{ url_for('users_admin') }}">用户</a>
+          {% endif %}
           <a class="gh-nav-link" data-nav="recent" href="{{ url_for('recent_commits') }}">最近提交</a>
+          {% if has_perm('audit_view') %}
           <a class="gh-nav-link" data-nav="audit" href="{{ url_for('audit_page') }}">审计</a>
-          {% if role == 'admin' %}
+          {% endif %}
+          {% if has_perm('server_manage') %}
           <a class="gh-nav-link" data-nav="server" href="{{ url_for('server_status') }}">系统</a>
           {% endif %}
         </nav>
         {% endif %}
         <div class="gh-header-right">
           {% if user %}
-          <div class="user-menu" id="user-menu">
+          <div class="user-menu" id="user-menu" style="margin-right:-5px;">
             <button type="button" class="user-menu-btn" id="user-menu-btn"
                     aria-haspopup="true" aria-expanded="false">
               <span class="avatar">{{ user[0]|upper }}</span>
               <span class="user-menu-name">{{ user }}</span>
-              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.939l3.72-3.719a.749.749 0 0 1 1.06 0Z"/></svg>
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" style="position:relative; top: 1px; margin-left: -2px;"><path fill="currentColor" d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.939l3.72-3.719a.749.749 0 0 1 1.06 0Z"/></svg>
             </button>
             <div class="user-menu-pop" id="user-menu-pop" hidden>
               <div class="user-menu-role">
-                当前角色：<strong>{{ "管理员" if role == "admin" else "只读" }}</strong>
-                {% if role != "admin" %}<span class="user-menu-role-hint">（仅可浏览）</span>{% endif %}
+                当前角色：<strong>{{ "管理员" if role == "admin" else (role or "只读") }}</strong>
+                {% if role != "admin" and not (has_perm('web_manage') or has_perm('server_manage') or has_perm('user_manage') or has_perm('repo_admin')) %}<span class="user-menu-role-hint">（仅可浏览）</span>{% endif %}
               </div>
               <button type="button" class="user-menu-item" data-modal-open="#pwd-modal">修改密码</button>
             </div>
           </div>
+          {% if has_perm('web_manage') or has_perm('server_manage') %}
+          <a class="header-link" href="{{ url_for('settings_page') }}">设置</a>
+          {% endif %}
           <a class="header-link" href="{{ url_for('logout') }}" data-no-pjax
              data-modal-open="#logout-modal">退出</a>
           {% endif %}

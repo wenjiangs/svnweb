@@ -1,5 +1,5 @@
-{% extends "users_layout.html" %}
-{% block users_content %}
+{% extends "settings_layout.html" %}
+{% block settings_content %}
 <div class="page-head">
   <h1 class="page-title">网站用户</h1>
   <span class="repo-count">{{ web_accounts|length }} 个账号（含顶层管理员）</span>
@@ -9,9 +9,8 @@
 </div>
 <p class="admin-desc page-sub">
   浏览器登录本站用的账号，保存在服务端 <code>config.json</code>（<code>web_users</code>），
-  与「SVN 用户」相互独立。
-  <strong>管理员</strong>可使用全部管理功能（建仓、用户、设置、审计等）；
-  <strong>只读</strong>仅能浏览仓库内容与统计。
+  与 SVN 仓库账号相互独立。角色决定可用功能，具体权限在「角色权限」中细分
+  （能否建仓、删仓、管理用户等）。
   修改自己账号的密码请用右上角头像菜单。
 </p>
 
@@ -26,7 +25,7 @@
           {% if a.role == 'admin' %}
           <span class="tag perm-tag perm-rw">管理员</span>
           {% else %}
-          <span class="tag perm-tag perm-r">只读</span>
+          <span class="tag perm-tag perm-r">{{ a.role }}</span>
           {% endif %}
         </td>
         <td class="col-act">
@@ -51,7 +50,8 @@
   </table>
   <p class="admin-desc admin-hint">
     顶层账号是兜底入口：即使所有网站账号都不可用，它始终可以登录本站。
-    自己的角色不可改为只读、当前登录账号不可删除，且至少保留一个管理员。
+    自己的角色不可改为非管理员、当前登录账号不可删除，且至少保留一个管理员。
+    角色对应的细粒度权限见左侧「角色权限」。
   </p>
 </div>
 
@@ -73,11 +73,14 @@
           <input type="text" name="username" id="webuser-name-input" required maxlength="64"
                  pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,63}" spellcheck="false">
         </label>
-        <fieldset class="perm-fieldset">
-          <legend class="field-label">角色</legend>
-          <label class="perm-opt"><input type="radio" name="role" value="admin" checked>管理员（全部管理功能）</label>
-          <label class="perm-opt"><input type="radio" name="role" value="viewer">只读（仅浏览）</label>
-        </fieldset>
+        <label class="field">
+          <span class="field-label">角色</span>
+          <select name="role" id="webuser-role-select" class="field-input">
+            {% for r in roles %}
+            <option value="{{ r.name }}">{{ "管理员（全部权限）" if r.name == "admin" else ("只读（仅浏览）" if r.name == "viewer" else r.name) }}</option>
+            {% endfor %}
+          </select>
+        </label>
         <label class="field">
           <span class="field-label">密码</span>
           <input type="password" name="password" id="webuser-pw-input" autocomplete="new-password"
@@ -106,15 +109,13 @@
   if (!root || !modal) { return; }
   var title = document.getElementById('webuser-modal-title');
   var nameInput = document.getElementById('webuser-name-input');
+  var roleSel = document.getElementById('webuser-role-select');
   var pw = document.getElementById('webuser-pw-input');
   var pw2 = modal.querySelector('input[name="password2"]');
   var hint = document.getElementById('webuser-modal-hint');
 
   function setRole(val) {
-    var radios = modal.querySelectorAll('input[type="radio"][name="role"]');
-    for (var i = 0; i < radios.length; i++) {
-      radios[i].checked = (radios[i].value === val);
-    }
+    if (roleSel) { roleSel.value = val; }
   }
 
   root.addEventListener('click', function (ev) {
@@ -140,7 +141,7 @@
       pw.value = '';
       if (pw2) { pw2.value = ''; }
       pw.required = false;
-      if (hint) { hint.textContent = '编辑时用户名不可改；密码留空表示不修改；角色按上面选择保存。'; }
+      if (hint) { hint.textContent = '编辑时用户名不可改；密码留空表示不修改；角色决定该账号能使用哪些管理功能。'; }
     }
   });
 })();

@@ -55,6 +55,22 @@ app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
 
 
+# 网站角色细粒度权限：角色 -> 能力清单。内置角色 admin（全部）/ viewer（无）
+# 之外，管理员可在「设置 → 角色权限」自定义角色，存于 config.json 的 web_roles。
+WEB_PERMS = {
+    "repo_create":   "新建仓库",
+    "repo_archive":  "归档 / 恢复 / 彻底删除仓库",
+    "repo_rename":   "重命名仓库",
+    "repo_admin":    "仓库设置（描述 / 备份 / 钩子 / 锁）",
+    "branch_create": "创建分支 / 标签",
+    "user_manage":   "管理 SVN 用户与用户组",
+    "web_manage":    "管理网站用户与角色（设置页）",
+    "server_manage": "系统状态与站点设置（仓库根目录）",
+    "audit_view":    "查看审计日志",
+}
+BUILTIN_WEB_ROLES = {"admin": "*", "viewer": []}
+
+
 def _apply_config(cfg):
     """把配置字典应用到模块级全局变量。
 
@@ -66,7 +82,8 @@ def _apply_config(cfg):
     global LOG_PAGE_SIZE, SEARCH_MAX_RESULTS, SEARCH_SNIPPET_MAX
     global SEARCH_SNIPPET_WIDTH, SEARCH_SCAN_TTL, SEARCH_SCAN_BUDGET
     global SEARCH_SCAN_TIMEOUT, SVN_BASE, AUDIT_MAX, ARCHIVE_DIR
-    global BACKUP_DIR, ARCHIVE_MAX_BYTES, WEB_USERS, BEHIND_PROXY
+    global BACKUP_DIR, ARCHIVE_MAX_BYTES, WEB_USERS, BEHIND_PROXY, WEB_ROLES
+    global LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS
 
     REPO_ROOT = cfg.get("repo_root", "/svn")
     USERNAME = cfg.get("username", "admin")
@@ -98,9 +115,14 @@ def _apply_config(cfg):
     ARCHIVE_DIR = os.path.join(REPO_ROOT, ".archived")
     BACKUP_DIR = cfg.get("backup_dir", os.path.join(BASE_DIR, "backups"))
     ARCHIVE_MAX_BYTES = cfg.get("archive_max_bytes", 1024 * 1024 * 1024)
-    # 可选多账号：{"用户名": {"password_hash": "...", "role": "admin"|"viewer"}}
+    # 可选多账号：{"用户名": {"password_hash": "...", "role": "admin"|"viewer"|自定义角色}}
     WEB_USERS = cfg.get("web_users", {})
+    # 自定义角色：{"角色名": ["perm", ...]}；内置 admin/viewer 不落盘、始终生效
+    WEB_ROLES = dict(cfg.get("web_roles", {}))
     BEHIND_PROXY = cfg.get("behind_proxy", False)
+    # 登录防爆破：连续失败次数上限 / 锁定秒数（0 = 失败不锁定）
+    LOGIN_MAX_FAILS = max(1, int(cfg.get("login_max_fail", 5)))
+    LOGIN_LOCK_SECONDS = max(0, int(cfg.get("login_lock_seconds", 300)))
 
     app.secret_key = SECRET_KEY
     # 反代（nginx）终止 HTTPS 时让 request.is_secure / url_for 跟随转发头；
@@ -132,7 +154,7 @@ RESERVED_REPO_NAMES = {
     "blob", "raw", "blame", "download", "commits",
     "commit", "compare", "tree", "new", "created",
     "versions", "users", "recent", "audit", "server", "archived",
-    "install", "account", "media",
+    "install", "account", "media", "settings",
 }
 
 
@@ -1754,14 +1776,30 @@ def current_role():
         "admin" if session.get("user") else None)
 
 
-def admin_required(f):
-    """管理动作专用：viewer 角色只读，返回 403。"""
-    @functools.wraps(f)
-    def wrap(*args, **kwargs):
-        if current_role() != "admin":
-            abort(403)
-        return f(*args, **kwargs)
-    return wrap
+def has_perm(perm):
+    """当前会话是否拥有某项细粒度权限。
+
+    内置 admin 角色拥有全部权限；viewer 及自定义角色按 WEB_ROLES 清单判断
+    （角色未定义时视为无权限，保证白名单语义）。
+    """
+    r = current_role()
+    if r == "admin":
+        return True
+    if r is None:
+        return False
+    return perm in (WEB_ROLES.get(r) or [])
+
+
+def perm_required(perm):
+    """需要指定细粒度权限的管理动作装饰器，无权限返回 403。"""
+    def deco(f):
+        @functools.wraps(f)
+        def wrap(*args, **kwargs):
+            if not has_perm(perm):
+                abort(403)
+            return f(*args, **kwargs)
+        return wrap
+    return deco
 
 
 def _verify_web_password(hashval, password):
@@ -2129,7 +2167,9 @@ def inject_globals():
     return {"pygments_css": PYGMENTS_CSS, "human_time": human_time,
             "rel_time": rel_time, "human_size": human_size,
             "lang_of": lang_of, "user": session.get("user"),
-            "role": current_role(), "REPO_ROOT": REPO_ROOT,
+            "role": current_role(), "has_perm": has_perm,
+            "web_perm_labels": WEB_PERMS,
+            "REPO_ROOT": REPO_ROOT,
             "checkout_url": checkout_url, "tz_label": tz_label,
             "repo_desc": repo_desc,
             "search_scope_order": SEARCH_SCOPE_ORDER,
@@ -2177,7 +2217,7 @@ def repo_home(name):
 # --------------------------------------------------- 仓库管理：新建仓库
 @app.route("/admin/new", methods=["GET", "POST"])
 @login_required
-@admin_required
+@perm_required("repo_create")
 def new_repo():
     error = None
     name = ""
@@ -2196,7 +2236,7 @@ def new_repo():
 # --------------------------------------------------- 仓库管理：归档仓库
 @app.route("/archived/", methods=["GET", "POST"])
 @login_required
-@admin_required
+@perm_required("repo_archive")
 def archived_page():
     if request.method == "POST":
         action = request.form.get("action")
@@ -2234,8 +2274,7 @@ PERM_LABELS = {"none": "无权限", "r": "只读", "rw": "读写"}
 
 ADMIN_SECTIONS = {
     "overview": "基本信息",
-    "access": "账号与权限",
-    "groups": "用户组",
+    "authz": "权限文件",
     "backup": "备份",
     "hooks": "钩子脚本",
     "locks": "文件锁",
@@ -2243,8 +2282,7 @@ ADMIN_SECTIONS = {
 }
 ADMIN_SECTION_TEMPLATES = {
     "overview": "admin_overview.html",
-    "access": "admin_access.html",
-    "groups": "admin_groups.html",
+    "authz": "admin_authz.html",
     "backup": "admin_backup.html",
     "hooks": "admin_hooks.html",
     "locks": "admin_locks.html",
@@ -2256,12 +2294,11 @@ ADMIN_SECTION_TEMPLATES = {
            methods=["GET", "POST"])
 @app.route("/<name>/admin/<section>", methods=["GET", "POST"])
 @login_required
-@admin_required
+@perm_required("repo_admin")
 def repo_admin(name, section):
     validate_repo(name)
     error = None
     success = None
-    users = load_passwd(name)
 
     action = request.form.get("action") if request.method == "POST" else None
 
@@ -2282,42 +2319,6 @@ def repo_admin(name, section):
             success = "授权配置（authz）已保存。新权限立即对 svn:// 客户端生效。"
         except OSError as e:
             error = "保存 authz 失败：%s" % e
-
-    elif action == "save_group":
-        gname = (request.form.get("group") or "").strip().lstrip("@").strip()
-        members_raw = (request.form.get("members") or "").replace("，", ",")
-        perm = request.form.get("perm") or ""
-        members = [m for m in (x.strip() for x in members_raw.split(",")) if m]
-        if not GROUP_RE.match(gname):
-            error = ("组名不合法：字母/数字开头，后接字母、数字、点、"
-                     "下划线、连字符，最长 64 位")
-        elif not members:
-            error = "请填写至少一个成员（多个成员用英文逗号分隔）"
-        else:
-            try:
-                set_authz_group(name, gname, members)
-                # 根节授权：'r'/'rw' 写入，空串移除该行
-                set_authz_root_user(name, "@" + gname,
-                                    perm if perm in ("r", "rw") else "")
-                audit("save_group", name, "@%s（%d 人），根节权限=%s"
-                      % (gname, len(members), perm or "无"))
-                success = ("用户组 @%s 已保存（%s），立即生效。"
-                           % (gname, "、".join(members)))
-            except OSError as e:
-                error = "保存用户组失败：%s" % e
-
-    elif action == "del_group":
-        gname = (request.form.get("group") or "").strip().lstrip("@").strip()
-        if gname:
-            try:
-                remove_authz_group(name, gname)
-                audit("del_group", name, "@%s" % gname)
-                success = ("用户组 @%s 已删除（组定义与根节授权一并清理）。"
-                           % gname)
-            except OSError as e:
-                error = "删除用户组失败：%s" % e
-        else:
-            error = "缺少组名。"
 
     elif action == "rename_repo":
         new_name = (request.form.get("new_name") or "").strip()
@@ -2391,28 +2392,9 @@ def repo_admin(name, section):
     if section not in ADMIN_SECTIONS:
         abort(404)
 
-    # 组装账号列表：passwd 账号 + authz 根节权限（含孤儿授权）
+    # authz 原文（权限文件分区 / 危险操作页展示）
     authz = read_authz(name)
-    root_perms = parse_authz_root(authz)
     desc = repo_desc(name)
-
-    accounts = []
-    for u in users:
-        perm = root_perms.get(u, "")
-        accounts.append({"user": u, "perm": perm if perm in ("r", "rw") else "",
-                         "exists": True})
-    for who in root_perms:
-        if who in users or who in AUTHZ_SPECIAL or who.startswith("@"):
-            continue
-        perm = root_perms.get(who, "")
-        accounts.append({"user": who, "perm": perm if perm in ("r", "rw") else "",
-                         "exists": False})
-
-    # 用户组：定义 + 根节授权（@group = r/rw）
-    groups_raw = parse_authz_groups(authz)
-    groups = [{"name": g, "members": ms, "members_text": ", ".join(ms),
-               "perm": root_perms.get("@" + g, "") if root_perms.get("@" + g, "") in ("r", "rw") else ""}
-              for g, ms in sorted(groups_raw.items())]
 
     # 备份 / 钩子 / 锁
     sel_hook = (request.args.get("hook") or "").strip()
@@ -2425,10 +2407,8 @@ def repo_admin(name, section):
 
     ctx = dict(name=name, desc=desc, error=error, success=success,
                section=section, admin_sections=ADMIN_SECTIONS)
-    if section == "access":
-        ctx.update(accounts=accounts, authz=authz)
-    elif section == "groups":
-        ctx.update(groups=groups)
+    if section == "authz":
+        ctx.update(authz=authz)
     elif section == "backup":
         ctx.update(backups=list_backups(name),
                    backup_state=_backup_states.get(name))
@@ -2508,6 +2488,63 @@ def global_user_state():
     return accounts, len(repos)
 
 
+def global_group_state():
+    """汇总所有仓库的 [groups] 定义与 @组 根节授权，供集中用户组管理展示。
+
+    返回 (groups, repo_count)。groups 按组名排序，每项：
+    - members:          成员列表（各仓一致时的定义）
+    - members_text:     成员串；各仓定义不一致时为 None
+    - members_conflict: 各仓 [groups] 定义不一致（需重新保存以同步）
+    - perms:            {仓库名: 'r'/'rw'/''}，'' 视为未授权
+    - perm_label / perm_counts / perm_detail: 与账号矩阵同语义
+    """
+    repos = list_repos()
+    defs = {}    # 组名 -> {仓库: [成员]}
+    roots = {}   # 仓库 -> {主体: 权限}
+    for name in repos:
+        authz = read_authz(name)
+        roots[name] = parse_authz_root(authz)
+        for g, ms in parse_authz_groups(authz).items():
+            defs.setdefault(g, {})[name] = ms
+    groups = []
+    for g in sorted(defs, key=str.lower):
+        perm_map = {}
+        counts = {"rw": 0, "r": 0, "none": 0}
+        for name in repos:
+            p = roots.get(name, {}).get("@" + g, "")
+            p = p if p in ("r", "rw") else ""
+            perm_map[name] = p
+            counts["rw" if p == "rw" else ("r" if p == "r" else "none")] += 1
+        if repos and counts["rw"] == len(repos):
+            label = "rw"
+        elif repos and counts["r"] == len(repos):
+            label = "r"
+        elif repos and counts["none"] == len(repos):
+            label = "none"
+        else:
+            label = None
+        perm_counts = [] if label else [
+            (PERM_LABELS[k], counts[k]) for k in ("rw", "r", "none") if counts[k]]
+        perm_detail = ", ".join(
+            "%s=%s" % (n, PERM_LABELS["none" if p == "" else p])
+            for n, p in perm_map.items())
+        msets = {tuple(defs[g].get(n, [])) for n in repos}
+        members_conflict = len(msets) > 1
+        members = list(next(iter(msets))) if not members_conflict else []
+        groups.append({
+            "name": g,
+            "members": members,
+            "members_text": (", ".join(members)
+                             if not members_conflict else None),
+            "members_conflict": members_conflict,
+            "perms": perm_map,
+            "perm_label": label,
+            "perm_counts": perm_counts,
+            "perm_detail": perm_detail,
+        })
+    return groups, len(repos)
+
+
 def _apply_to_all_repos(fn):
     """对每个仓库执行 fn(name)，返回 (成功仓库数, {仓库名: 错误})。"""
     ok, bad = 0, {}
@@ -2580,7 +2617,10 @@ def _delete_web_user(username):
 @app.route("/users/<section>", methods=["GET", "POST"])
 @login_required
 def users_admin(section):
-    if section not in ("svn", "web"):
+    if section == "web":
+        # 网站用户 / 角色已迁移到「设置」页集中管理
+        return redirect(url_for("settings_page", section="users"))
+    if section not in ("svn", "groups"):
         abort(404)
     error = None
     success = None
@@ -2591,7 +2631,7 @@ def users_admin(section):
         known = {a["user"] for a in state}
 
         if action in ("save_user", "del_user",
-                      "save_web_user", "del_web_user") and current_role() != "admin":
+                      "save_group", "del_group") and not has_perm("user_manage"):
             abort(403)
 
         if action == "save_user":
@@ -2661,7 +2701,172 @@ def users_admin(section):
             if bad:
                 success += "（以下仓库清理失败：%s）" % "、".join(bad)
             audit("del_user", "", "账号 %s，涉及 %d 个仓库" % (uname, ok))
-        elif action == "save_web_user":
+        elif action == "save_group":
+            # 集中用户组：组定义与根节授权同步写所有仓库（与账号矩阵同语义）
+            gname = (request.form.get("group") or "").strip().lstrip("@").strip()
+            members_raw = (request.form.get("members") or "").replace("，", ",")
+            members = [m for m in (x.strip() for x in members_raw.split(",")) if m]
+            repos = list_repos()
+            perm_map = {}   # 仓库名 -> ''（未授权）/ 'r' / 'rw'
+            for rn in repos:
+                v = request.form.get("perm_" + rn) or "none"
+                if v not in PERM_LABELS:
+                    error = "仓库 %s 的权限参数不合法。" % rn
+                    break
+                perm_map[rn] = "" if v == "none" else v
+            if error is None:
+                if not GROUP_RE.match(gname):
+                    error = ("组名不合法：字母/数字开头，后接字母、数字、点、"
+                             "下划线、连字符，最长 64 位")
+                elif not members:
+                    error = "请填写至少一个成员（多个成员用英文逗号分隔）"
+            if error is None:
+                def _apply(name):
+                    set_authz_group(name, gname, members)
+                    # 根节授权：'r'/'rw' 写入，空串移除该行
+                    set_authz_root_user(name, "@" + gname,
+                                        perm_map.get(name, ""))
+                ok, bad = _apply_to_all_repos(_apply)
+                if ok == 0:
+                    error = "保存失败：%s" % next(iter(bad.values()), "未知错误")
+                else:
+                    success = ("用户组 @%s 已保存并同步到 %d 个仓库（成员：%s）。"
+                               % (gname, ok, "、".join(members)))
+                    if bad:
+                        success += "（以下仓库写入失败：%s）" % "、".join(bad)
+                    audit("save_group", "",
+                          "用户组 @%s（%d 人）；权限 %s"
+                          % (gname, len(members),
+                             " ".join("%s=%s" % (rn, p or "无")
+                                      for rn, p in sorted(perm_map.items()))
+                             or "（无仓库）"))
+        elif action == "del_group":
+            gname = (request.form.get("group") or "").strip().lstrip("@").strip()
+            if not gname:
+                error = "缺少组名。"
+            else:
+                def _apply(name):
+                    remove_authz_group(name, gname)
+                ok, bad = _apply_to_all_repos(_apply)
+                success = ("用户组 @%s 已从 %d 个仓库删除（组定义与根节授权一并清理）。"
+                           % (gname, ok))
+                if bad:
+                    success += "（以下仓库清理失败：%s）" % "、".join(bad)
+                audit("del_group", "", "用户组 @%s，涉及 %d 个仓库" % (gname, ok))
+        elif action is not None:
+            error = "未知操作。"
+
+    if section == "groups":
+        groups, g_repo_count = global_group_state()
+        return render_template("users_groups.html", section=section,
+                               groups=groups, repo_count=g_repo_count,
+                               repos=list_repos(), error=error, success=success)
+    accounts, repo_count = global_user_state()
+    return render_template("users_svn.html", section=section, accounts=accounts,
+                           repo_count=repo_count, repos=list_repos(),
+                           error=error, success=success)
+
+
+# ------------------------------------------------------- 网站设置页（Web 用户 / 角色 / 站点）
+SETTINGS_SECTIONS = {"users": "网站用户", "roles": "角色权限", "site": "站点设置"}
+SETTINGS_SECTION_PERM = {"users": "web_manage", "roles": "web_manage",
+                         "site": "server_manage"}
+SETTINGS_SECTION_TEMPLATES = {"users": "settings_users.html",
+                              "roles": "settings_roles.html",
+                              "site": "settings_site.html"}
+
+
+def _web_accounts_list():
+    """网站账号列表：顶层兜底账号（config.json username）+ web_users 多账号。"""
+    me = session.get("user") or ""
+    accounts = [{"name": USERNAME, "role": "admin",
+                 "self": me == USERNAME, "toplevel": True}]
+    for u, e in sorted(WEB_USERS.items()):
+        accounts.append({"name": u, "role": e.get("role") or "viewer",
+                         "self": u == me, "toplevel": False})
+    return accounts
+
+
+def _roles_with_counts():
+    """角色清单（内置 + 自定义）及每个角色下的账号数，供设置页展示。"""
+    counts = {}
+    for _u, e in WEB_USERS.items():
+        r = e.get("role") or "viewer"
+        counts[r] = counts.get(r, 0) + 1
+    names = (["admin", "viewer"]
+             + sorted(k for k in WEB_ROLES if k not in BUILTIN_WEB_ROLES))
+    roles = []
+    for name in names:
+        if name == "admin":
+            perms = sorted(WEB_PERMS)          # 内置管理员 = 全部权限
+        elif name == "viewer":
+            perms = []                          # 内置只读 = 无权限
+        else:
+            perms = [p for p in (WEB_ROLES.get(name) or []) if p in WEB_PERMS]
+        roles.append({"name": name, "perms": perms,
+                      "builtin": name in BUILTIN_WEB_ROLES,
+                      "users": counts.get(name, 0)})
+    return roles
+
+
+def _save_web_roles(custom_roles):
+    """把自定义角色写回 config.json 的 web_roles（内置角色不落盘），同步内存。"""
+    global WEB_ROLES
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        disk = json.load(f)
+    disk["web_roles"] = custom_roles
+    tmp = CONFIG_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(disk, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    os.replace(tmp, CONFIG_PATH)
+    WEB_ROLES = dict(custom_roles)
+
+
+def _save_site_settings(log_page_size, login_max_fail,
+                        login_lock_seconds, behind_proxy):
+    """把站点运行参数原子写回 config.json 并热应用到内存。
+
+    重新读盘再覆盖，保留进程启动后其它配置改动（与 _update_web_password 同套路）。
+    behind_proxy 关闭时 ProxyFix 包装不会即时解除，需重启服务才完全还原。
+    """
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        disk = json.load(f)
+    disk["log_page_size"] = log_page_size
+    disk["login_max_fail"] = login_max_fail
+    disk["login_lock_seconds"] = login_lock_seconds
+    disk["behind_proxy"] = behind_proxy
+    tmp = CONFIG_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(disk, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    os.replace(tmp, CONFIG_PATH)
+    _apply_config(disk)
+
+
+# 注意：/settings/ 的默认节用空串占位而不用 "users"——werkzeug 会把
+# 「值等于 defaults 的 URL」308 重定向到规范地址，写成 "users" 会让
+# /settings/users 永远重定向回 /settings/。
+@app.route("/settings/", methods=["GET", "POST"], defaults={"section": ""})
+@app.route("/settings/<section>", methods=["GET", "POST"])
+@login_required
+def settings_page(section):
+    if not section:
+        section = "users"
+    if section not in SETTINGS_SECTIONS:
+        abort(404)
+    if not has_perm(SETTINGS_SECTION_PERM[section]):
+        abort(403)
+    error = None
+    success = None
+
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action in ("save_web_user", "del_web_user",
+                      "save_role", "del_role") and not has_perm("web_manage"):
+            abort(403)
+
+        if action == "save_web_user":
             # 添加 / 编辑网站登录账号（config.json 的 web_users），与 SVN 账号无关
             wname = (request.form.get("username") or "").strip()
             wrole = request.form.get("role") or "viewer"
@@ -2671,15 +2876,16 @@ def users_admin(section):
             existed = wname in WEB_USERS
             admins = [u for u, e in WEB_USERS.items()
                       if (e.get("role") or "viewer") == "admin"]
+            valid_roles = ({"admin"} | set(WEB_ROLES) | {"viewer"})
             if not wname or not USER_RE.match(wname):
                 error = ("用户名不合法：字母/数字开头，后接字母、数字、点、"
                          "下划线、连字符，最长 64 位")
             elif wname == USERNAME:
                 error = "该用户名与 config.json 的顶层管理员账号相同，请换一个。"
-            elif wrole not in ("admin", "viewer"):
+            elif wrole not in valid_roles:
                 error = "角色不合法。"
             elif existed and wname == me and wrole != "admin":
-                error = "不能把自己的角色改为只读（防止把自己锁在门外）。"
+                error = "不能把自己的角色改为非管理员（防止把自己锁在门外）。"
             elif existed and wname in admins and wrole != "admin" and len(admins) == 1:
                 error = "至少要保留一个管理员账号。"
             elif not existed and not pw1:
@@ -2699,12 +2905,10 @@ def users_admin(section):
                 else:
                     audit("save_web_user", "",
                           "%s 账号 %s，角色 %s%s"
-                          % ("编辑" if existed else "新建", wname,
-                             "管理员" if wrole == "admin" else "只读",
+                          % ("编辑" if existed else "新建", wname, wrole,
                              "，密码已重置" if pw1 else ""))
                     success = "网站账号 %s 已%s（角色：%s）。%s" % (
-                        wname, "保存" if existed else "创建",
-                        "管理员" if wrole == "admin" else "只读",
+                        wname, "保存" if existed else "创建", wrole,
                         "密码已重置，该账号下次登录使用新密码。" if pw1 else "")
         elif action == "del_web_user":
             wname = request.form.get("username") or ""
@@ -2725,33 +2929,101 @@ def users_admin(section):
                     success = msg + "（不影响同名 SVN 账号）。"
                 else:
                     error = msg
+        elif action == "save_role":
+            rname = (request.form.get("role") or "").strip()
+            perms = [p for p in request.form.getlist("perm") if p in WEB_PERMS]
+            if rname in BUILTIN_WEB_ROLES:
+                error = "内置角色 %s 不可修改。" % rname
+            elif not rname or not USER_RE.match(rname):
+                error = ("角色名不合法：字母/数字开头，后接字母、数字、点、"
+                         "下划线、连字符，最长 64 位")
+            else:
+                customs = {k: v for k, v in WEB_ROLES.items()
+                           if k not in BUILTIN_WEB_ROLES}
+                customs[rname] = perms
+                try:
+                    _save_web_roles(customs)
+                except OSError as e:
+                    error = "写入 config.json 失败：%s" % e
+                else:
+                    audit("save_role", "",
+                          "角色 %s，权限 %s" % (rname, " ".join(perms) or "无"))
+                    success = ("角色 %s 已保存（%d 项权限），所有使用该角色的账号立即按新权限生效。"
+                               % (rname, len(perms)))
+        elif action == "del_role":
+            rname = (request.form.get("role") or "").strip()
+            if rname in BUILTIN_WEB_ROLES:
+                error = "内置角色不可删除。"
+            elif rname not in WEB_ROLES:
+                error = "角色不存在。"
+            elif any((e.get("role") or "viewer") == rname
+                     for e in WEB_USERS.values()):
+                error = "仍有网站账号使用该角色，请先在「网站用户」里改派其它角色。"
+            else:
+                customs = {k: v for k, v in WEB_ROLES.items()
+                           if k not in BUILTIN_WEB_ROLES}
+                customs.pop(rname, None)
+                try:
+                    _save_web_roles(customs)
+                except OSError as e:
+                    error = "写入 config.json 失败：%s" % e
+                else:
+                    audit("del_role", "", "角色 %s" % rname)
+                    success = "角色 %s 已删除。" % rname
+        elif action == "save_site":
+            # 站点运行参数（路由层已按 server_manage 权限把关）
+            def _int_val(name, lo, hi):
+                raw = (request.form.get(name) or "").strip()
+                try:
+                    v = int(raw)
+                except ValueError:
+                    return None
+                return v if lo <= v <= hi else None
+            lps = _int_val("log_page_size", 10, 500)
+            lmf = _int_val("login_max_fail", 1, 50)
+            lls = _int_val("login_lock_seconds", 0, 86400)
+            bproxy = request.form.get("behind_proxy") == "on"
+            if lps is None:
+                error = "每页版本数需为 10-500 的整数。"
+            elif lmf is None:
+                error = "登录失败次数上限需为 1-50 的整数。"
+            elif lls is None:
+                error = "锁定时长需为 0-86400 的整数秒（0 = 不锁定）。"
+            else:
+                try:
+                    _save_site_settings(lps, lmf, lls, bproxy)
+                except OSError as e:
+                    error = "写入 config.json 失败：%s" % e
+                else:
+                    audit("save_site", "",
+                          "log_page_size=%d login_max_fail=%d "
+                          "login_lock_seconds=%d behind_proxy=%s"
+                          % (lps, lmf, lls, bproxy))
+                    success = "站点设置已保存并立即生效。%s" % (
+                        "" if bproxy else
+                        "（behind_proxy 关闭后建议重启服务以完全解除代理头信任）")
         elif action is not None:
             error = "未知操作。"
 
-    accounts, repo_count = global_user_state()
-    me = session.get("user") or ""
-    # 顶层单账号（config.json username/password_hash）始终列出：它是多账号模式的兜底入口
-    web_accounts = [{"name": USERNAME, "role": "admin",
-                     "self": me == USERNAME, "toplevel": True}]
-    for u, e in sorted(WEB_USERS.items()):
-        web_accounts.append({"name": u, "role": (e.get("role") or "viewer"),
-                             "self": u == me, "toplevel": False})
-    if section == "web":
-        # 网站账号属管理信息，只读角色不展示
-        if current_role() != "admin":
-            abort(403)
-        return render_template("users_web.html", section=section,
-                               web_accounts=web_accounts,
-                               error=error, success=success)
-    return render_template("users_svn.html", section=section, accounts=accounts,
-                           repo_count=repo_count, repos=list_repos(),
-                           error=error, success=success)
+    ctx = dict(section=section, settings_sections=SETTINGS_SECTIONS,
+               error=error, success=success)
+    if section == "users":
+        ctx.update(web_accounts=_web_accounts_list(), roles=_roles_with_counts())
+    elif section == "roles":
+        ctx.update(roles=_roles_with_counts())
+    elif section == "site":
+        ctx.update(repo_root=REPO_ROOT,
+                   log_page_size=LOG_PAGE_SIZE,
+                   login_max_fail=LOGIN_MAX_FAILS,
+                   login_lock_seconds=LOGIN_LOCK_SECONDS,
+                   behind_proxy=BEHIND_PROXY)
+    return render_template(SETTINGS_SECTION_TEMPLATES[section], **ctx)
 
 
 # ------------------------------------------------- 备份下载 / 分支标签 / 打包下载
 @app.route("/<name>/backup/<path:fname>")
 @login_required
-@admin_required
+@perm_required("repo_admin")
 def backup_download(name, fname):
     """下载一个 svnadmin dump 备份文件（校验前缀，防目录穿越）。"""
     if fname != os.path.basename(fname) or not fname.startswith(
@@ -2765,7 +3037,7 @@ def backup_download(name, fname):
 
 @app.route("/<name>/branch", methods=["POST"])
 @login_required
-@admin_required
+@perm_required("branch_create")
 def create_branch(name):
     """在线创建分支/标签：svn copy URL URL --parents -m。"""
     validate_repo(name)
@@ -2916,7 +3188,7 @@ def recent_commits():
 # ------------------------------------------------------- 审计日志页
 @app.route("/audit/")
 @login_required
-@admin_required
+@perm_required("audit_view")
 def audit_page():
     q_repo = (request.args.get("repo") or "").strip()
     q_action = (request.args.get("action") or "").strip()
@@ -2980,7 +3252,7 @@ def _svnserve_status():
 
 @app.route("/server/")
 @login_required
-@admin_required
+@perm_required("server_manage")
 def server_status():
     repos = []
     for n in list_repos():
@@ -3056,7 +3328,7 @@ def _win_svnserve_service():
 
 @app.route("/server/restart", methods=["POST"])
 @login_required
-@admin_required
+@perm_required("server_manage")
 def server_restart():
     if shutil.which("systemctl"):
         rc, out, err = run_svn(["systemctl", "restart", "svnserve"], timeout=60)
@@ -3104,31 +3376,31 @@ def server_restart():
     return redirect(url_for("server_status"))
 
 
-@app.route("/server/repo_root", methods=["POST"])
+@app.route("/settings/repo_root", methods=["POST"])
 @login_required
-@admin_required
-def server_repo_root():
-    """系统页重新设置仓库根目录：只切换扫描位置，不移动任何文件。"""
+@perm_required("server_manage")
+def settings_repo_root():
+    """设置页重新设置仓库根目录：只切换扫描位置，不移动任何文件。"""
     global CONFIG
     new = (request.form.get("repo_root") or "").strip().strip('"')
     new = new.replace("\\", "/").rstrip("/")
     old = REPO_ROOT.replace("\\", "/").rstrip("/")
     if not new or not os.path.isabs(new):
         flash("仓库根目录必须是绝对路径（如 D:/svn 或 /svn）。", "error")
-        return redirect(url_for("server_status"))
+        return redirect(url_for("settings_page", section="site"))
     same = (new.lower() == old.lower()) if os.name == "nt" else (new == old)
     if same:
         flash("新仓库根目录与当前一致，未做变更。", "error")
-        return redirect(url_for("server_status"))
+        return redirect(url_for("settings_page", section="site"))
     if not os.path.isdir(new):
         try:
             os.makedirs(new)
         except OSError as e:
             flash("目录 %s 创建失败：%s" % (new, e), "error")
-            return redirect(url_for("server_status"))
+            return redirect(url_for("settings_page", section="site"))
     if not os.access(new, os.W_OK):
         flash("目录 %s 不可写，请检查权限。" % new, "error")
-        return redirect(url_for("server_status"))
+        return redirect(url_for("settings_page", section="site"))
 
     n_old = len(list_repos())
     cfg = dict(CONFIG)
@@ -3141,7 +3413,7 @@ def server_repo_root():
         os.replace(tmp, CONFIG_PATH)
     except OSError as e:
         flash("config.json 写入失败：%s" % e, "error")
-        return redirect(url_for("server_status"))
+        return redirect(url_for("settings_page", section="site"))
 
     CONFIG = cfg
     _apply_config(cfg)      # REPO_ROOT / ARCHIVE_DIR 热更新
@@ -3155,7 +3427,7 @@ def server_repo_root():
         flash("仓库根目录已切换为 %s，但该目录下未发现仓库（没有含 db 的子目录），"
               "请确认路径是否正确。原目录 %s 下的 %d 个仓库不再显示（文件未移动）。"
               % (new, old, n_old), "error")
-    return redirect(url_for("server_status"))
+    return redirect(url_for("settings_page", section="site"))
 
 
 @app.route("/<name>/", defaults={"path": ""})

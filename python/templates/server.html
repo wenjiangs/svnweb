@@ -33,31 +33,6 @@
 </div>
 
 <div class="admin-card">
-  <h2 class="admin-title">仓库根目录</h2>
-  <p class="admin-desc">当前：<code>{{ repo_root }}</code></p>
-  <p class="admin-desc">
-    <b>注意：</b>此处的切换<b>只改变网页扫描的目录，不会移动任何文件</b>。
-    切换后原目录下的仓库将不再显示；新目录应是若干仓库（含 <code>db</code> 子目录）
-    的父目录。如果用 <code>svn://</code> 检出，请把 svnserve 的 <code>-r</code>
-    参数改成同一目录，否则客户端会找不到仓库。
-  </p>
-  <form class="root-form" method="post" action="{{ url_for('server_repo_root') }}"
-        data-confirm
-        data-confirm-title="切换仓库根目录"
-        data-confirm-btn="保存并切换"
-        data-confirm-text="确定将仓库根目录切换为新路径吗？原目录下的仓库将不再显示（文件不会被移动）。">
-    <span class="field-input root-input">
-      <span class="field-icon">
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M1.5 3.75c0-.69.56-1.25 1.25-1.25h2.9c.4 0 .78.19 1.02.51l.6.8c.05.06.12.09.19.09h5.29c.69 0 1.25.56 1.25 1.25v7.1c0 .69-.56 1.25-1.25 1.25H2.75c-.69 0-1.25-.56-1.25-1.25V3.75Z"/></svg>
-      </span>
-      <input type="text" name="repo_root" value="{{ repo_root }}"
-             placeholder="{{ 'D:/svn' if repo_root.startswith('/') else '/svn' }}">
-    </span>
-    <button class="btn" type="submit">保存并切换</button>
-  </form>
-</div>
-
-<div class="admin-card">
   <h2 class="admin-title">仓库磁盘占用</h2>
   <p class="admin-desc">
     按占用从大到小排序（包含 db、conf 与 hooks 的全部内容）。

@@ -1,0 +1,149 @@
+{% extends "settings_layout.html" %}
+{% block settings_content %}
+<div class="page-head">
+  <h1 class="page-title">角色权限</h1>
+  <span class="repo-count">{{ roles|length }} 个角色</span>
+  <div class="page-head-actions">
+    <button type="button" class="btn btn-primary" data-modal-open="#role-modal" data-role-add>新增角色</button>
+  </div>
+</div>
+<p class="admin-desc page-sub">
+  角色决定网站账号能使用哪些功能（建仓、删仓、管理用户等）。内置角色
+  <code>admin</code>（全部权限）与 <code>viewer</code>（仅浏览）不可修改；
+  自定义角色保存在 <code>config.json</code> 的 <code>web_roles</code>，
+  权限变更立即对所有使用该角色的账号生效。
+</p>
+
+<div class="admin-card" id="roles-card">
+  <table class="user-table">
+    <thead><tr><th>角色</th><th>权限</th><th>账号数</th><th class="col-act">操作</th></tr></thead>
+    <tbody>
+      {% for r in roles %}
+      <tr>
+        <td class="mono">
+          {% if r.name == 'admin' %}admin（管理员）
+          {% elif r.name == 'viewer' %}viewer（只读）
+          {% else %}{{ r.name }}{% endif %}
+        </td>
+        <td>
+          {% if r.name == 'admin' %}
+          <span class="tag perm-tag perm-rw">全部权限</span>
+          {% elif r.perms %}
+          <span class="perm-mixed">
+            {% for p in r.perms %}{{ web_perm_labels.get(p, p) }}{% if not loop.last %} · {% endif %}{% endfor %}
+          </span>
+          {% else %}
+          <span class="tag perm-tag perm-none">仅浏览</span>
+          {% endif %}
+        </td>
+        <td>{{ r.users }}</td>
+        <td class="col-act">
+          {% if r.builtin %}
+          <span class="muted" title="内置角色：admin 拥有全部权限，viewer 仅可浏览，均不可修改或删除">内置</span>
+          {% else %}
+          <button type="button" class="btn btn-mini" data-modal-open="#role-modal"
+                  data-role-edit="{{ r.name }}"
+                  data-role-perms='{{ r.perms|tojson }}'>编辑</button>
+          {% if r.users == 0 %}
+          <form class="inline-form" method="post"
+                onsubmit="return confirm('确定删除角色 {{ r.name }} 吗？');">
+            <input type="hidden" name="action" value="del_role">
+            <input type="hidden" name="role" value="{{ r.name }}">
+            <button class="btn btn-danger btn-mini" type="submit">删除</button>
+          </form>
+          {% else %}
+          <span class="muted" title="仍有账号使用该角色，需先改派后才能删除">使用中</span>
+          {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="admin-desc admin-hint">
+    权限说明：{{ web_perm_labels.values()|join(' / ') }}。
+    有账号使用的角色不可删除，请先把账号改派到其它角色。
+  </p>
+</div>
+
+{# 新增 / 编辑角色共用一个弹窗 #}
+<div class="modal" id="role-modal" hidden>
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="role-modal-title">
+    <div class="modal-head">
+      <h2 class="modal-title" id="role-modal-title">新增角色</h2>
+      <button type="button" class="modal-x" data-modal-close aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <form method="post" class="user-modal-form" id="role-form">
+        <input type="hidden" name="action" value="save_role">
+        <label class="field">
+          <span class="field-label">角色名</span>
+          <input type="text" name="role" id="role-name-input" required maxlength="64"
+                 placeholder="例如 repo-admin" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,63}"
+                 spellcheck="false">
+        </label>
+        <fieldset class="perm-fieldset">
+          <legend class="field-label">权限</legend>
+          {% for p, label in web_perm_labels.items() %}
+          <label class="perm-opt"><input type="checkbox" name="perm" value="{{ p }}"> {{ label }}</label>
+          {% endfor %}
+        </fieldset>
+        <p class="clone-hint" id="role-modal-hint"></p>
+        <div class="form-actions">
+          <button class="btn" type="button" data-modal-close>取消</button>
+          <button class="btn btn-primary" type="submit" id="role-submit">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 角色弹窗预填：监听挂在本卡片/弹窗元素上，pjax 替换 #pjax-main 后随旧 DOM 销毁。 */
+(function () {
+  var root = document.getElementById('roles-card');
+  var modal = document.getElementById('role-modal');
+  if (!root || !modal) { return; }
+  var title = document.getElementById('role-modal-title');
+  var form = document.getElementById('role-form');
+  var nameInput = document.getElementById('role-name-input');
+  var submit = document.getElementById('role-submit');
+  var hint = document.getElementById('role-modal-hint');
+
+  function setPerms(list) {
+    var boxes = modal.querySelectorAll('input[type="checkbox"][name="perm"]');
+    for (var i = 0; i < boxes.length; i++) {
+      boxes[i].checked = (list.indexOf(boxes[i].value) !== -1);
+    }
+  }
+
+  root.addEventListener('click', function (ev) {
+    var t = ev.target.closest ? ev.target : null;
+    if (!t) { return; }
+    if (t.closest('[data-role-add]')) {
+      title.textContent = '新增角色';
+      nameInput.readOnly = false;
+      nameInput.value = '';
+      setPerms([]);
+      submit.textContent = '保存';
+      if (hint) { hint.textContent = '勾选该角色可使用的功能；保存后在「网站用户」里把账号指派到该角色。'; }
+      return;
+    }
+    var btn = t.closest('[data-role-edit]');
+    if (btn) {
+      var list = [];
+      try { list = JSON.parse(btn.getAttribute('data-role-perms') || '[]') || []; } catch (e) {}
+      title.textContent = '编辑角色 ' + btn.getAttribute('data-role-edit');
+      nameInput.readOnly = true;
+      nameInput.value = btn.getAttribute('data-role-edit');
+      setPerms(list);
+      submit.textContent = '保存修改';
+      if (hint) { hint.textContent = '权限变更立即对该角色下的所有账号生效。'; }
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -7,12 +7,14 @@ _branches = branches|default(none) %} {% set _stats = stats|default(none) %}
   <section class="side-block">
     <h2 class="side-title">
       关于
+      {% if has_perm('repo_admin') %}
       <a class="side-edit" href="{{ url_for('repo_admin', name=name) }}" title="编辑仓库描述">编辑</a>
+      {% endif %}
     </h2>
     {% if desc %}
     <p class="side-desc">{{ desc }}</p>
     {% else %}
-    <p class="side-desc side-desc-empty">暂无描述，<a href="{{ url_for('repo_admin', name=name) }}">添加描述</a>。</p>
+    <p class="side-desc side-desc-empty">暂无描述{% if has_perm('repo_admin') %}，<a href="{{ url_for('repo_admin', name=name) }}">添加描述</a>{% endif %}。</p>
     {% endif %}
   </section>
 
@@ -120,7 +122,7 @@ _branches = branches|default(none) %} {% set _stats = stats|default(none) %}
         </svg>
         检出代码
       </button>
-      {% if side_tree_ops %}
+      {% if side_tree_ops and has_perm('branch_create') %}
       <button type="button" class="side-link" data-modal-open="#branch-modal">
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
           <path
@@ -163,6 +165,7 @@ _branches = branches|default(none) %} {% set _stats = stats|default(none) %}
         浏览文件
       </a>
       {% endif %}
+      {% if has_perm('repo_admin') %}
       <a class="side-link" href="{{ url_for('repo_admin', name=name) }}">
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
           <path
@@ -172,6 +175,7 @@ _branches = branches|default(none) %} {% set _stats = stats|default(none) %}
         </svg>
         仓库设置
       </a>
+      {% endif %}
       <a class="side-link" href="{{ url_for('index') }}">
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
           <path

@@ -1,0 +1,138 @@
+{% extends "settings_layout.html" %}
+{% block settings_content %}
+<div class="page-head">
+  <h1 class="page-title">站点设置</h1>
+</div>
+<p class="admin-desc page-sub">
+  影响全站的运行参数。当前仓库根目录：<code>{{ repo_root }}</code>。
+</p>
+
+<div class="admin-card">
+  <h2 class="admin-title">运行参数</h2>
+  <p class="admin-desc">
+    保存后写入 <code>config.json</code> 并立即生效，无需重启服务。
+  </p>
+  <form class="site-form" method="post" action="{{ url_for('settings_page', section='site') }}">
+    <input type="hidden" name="action" value="save_site">
+    <div class="site-grid">
+      <label class="site-item">
+        <span class="field-label">每页版本数 <em>log_page_size</em></span>
+        <input type="number" name="log_page_size" min="10" max="500" required
+               value="{{ log_page_size }}">
+        <span class="site-hint">版本列表每页显示的提交条数（10-500）</span>
+      </label>
+      <label class="site-item">
+        <span class="field-label">登录失败次数上限 <em>login_max_fail</em></span>
+        <input type="number" name="login_max_fail" min="1" max="50" required
+               value="{{ login_max_fail }}">
+        <span class="site-hint">同一账号连续失败达到该次数即锁定（1-50）</span>
+      </label>
+      <label class="site-item">
+        <span class="field-label">账号锁定时长（秒） <em>login_lock_seconds</em></span>
+        <input type="number" name="login_lock_seconds" min="0" max="86400" required
+               value="{{ login_lock_seconds }}">
+        <span class="site-hint">锁定持续秒数（0-86400，0 = 不锁定）</span>
+      </label>
+    </div>
+    <label class="site-check">
+      <input type="checkbox" name="behind_proxy" {{ 'checked' if behind_proxy }}>
+      <span>
+        站点在反向代理（nginx HTTPS）之后 <em>behind_proxy</em>
+        <span class="site-hint">开启后登录跳转跟随代理转发头；关闭后建议重启服务以完全解除</span>
+      </span>
+    </label>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">保存</button>
+    </div>
+  </form>
+</div>
+
+<div class="admin-card">
+  <h2 class="admin-title">仓库根目录</h2>
+  <p class="admin-desc">
+    <b>注意：</b>切换<b>只改变网页扫描的目录，不会移动任何文件</b>。
+    切换后原目录下的仓库将不再显示；新目录应是若干仓库（含 <code>db</code> 子目录）
+    的父目录。如果用 <code>svn://</code> 检出，请把 svnserve 的 <code>-r</code>
+    参数改成同一目录，否则客户端会找不到仓库。
+  </p>
+  <form class="root-form" method="post" action="{{ url_for('settings_repo_root') }}"
+        data-confirm
+        data-confirm-title="切换仓库根目录"
+        data-confirm-btn="保存并切换"
+        data-confirm-text="确定将仓库根目录切换为新路径吗？原目录下的仓库将不再显示（文件不会被移动）。">
+    <span class="field-input root-input">
+      <span class="field-icon">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M1.5 3.75c0-.69.56-1.25 1.25-1.25h2.9c.4 0 .78.19 1.02.51l.6.8c.05.06.12.09.19.09h5.29c.69 0 1.25.56 1.25 1.25v7.1c0 .69-.56 1.25-1.25 1.25H2.75c-.69 0-1.25-.56-1.25-1.25V3.75Z"/></svg>
+      </span>
+      <input type="text" name="repo_root" value="{{ repo_root }}"
+             placeholder="{{ 'D:/svn' if repo_root.startswith('/') else '/svn' }}">
+    </span>
+    <button class="btn" type="submit">保存并切换</button>
+  </form>
+</div>
+
+{# 通用确认弹窗：表单加 data-confirm / data-confirm-title / data-confirm-text /
+   data-confirm-btn 即自动拦截提交、弹此窗；关闭逻辑（遮罩 / Esc / 取消）复用 base.html 的弹窗脚本 #}
+<div class="modal" id="confirm-modal" hidden>
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+    <div class="modal-head">
+      <h2 class="modal-title" id="confirm-modal-title">确认操作</h2>
+      <button type="button" class="modal-x" data-modal-close aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p class="admin-desc" id="confirm-modal-text"></p>
+      <div class="form-actions">
+        <button class="btn" type="button" data-modal-close>取消</button>
+        <button class="btn btn-danger" type="button" id="confirm-modal-ok">确认</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  /* 共享状态挂 window：document 级 submit 委托只绑一次，但弹窗元素在
+     pjax-main 内会被整体替换，所以委托里必须实时 getElementById，
+     不能缓存元素引用（否则 pjax 换页后写的是已分离的旧节点）。 */
+  var store = window.__confirmModal = window.__confirmModal || { pending: null };
+
+  if (!window.__confirmModalSubmitBound) {
+    window.__confirmModalSubmitBound = true;
+    document.addEventListener('submit', function (ev) {
+      var f = ev.target;
+      if (!f || !f.getAttribute || !f.hasAttribute('data-confirm')) return;
+      var modal = document.getElementById('confirm-modal');
+      if (!modal) return;
+      ev.preventDefault();
+      store.pending = f;
+      document.getElementById('confirm-modal-title').textContent =
+        f.getAttribute('data-confirm-title') || '确认操作';
+      document.getElementById('confirm-modal-text').textContent =
+        f.getAttribute('data-confirm-text') || '';
+      document.getElementById('confirm-modal-ok').textContent =
+        f.getAttribute('data-confirm-btn') || '确认';
+      modal.hidden = false;
+      document.body.classList.add('modal-open');
+      var first = modal.querySelector('button:not(.modal-x)');
+      if (first && first.focus) first.focus();
+    }, true);
+  }
+
+  /* OK 按钮绑定在当前渲染的弹窗元素上：pjax 替换 DOM 后本脚本重放，
+     会重新查到新元素并重新绑定（旧元素上的绑定随旧节点一起销毁） */
+  var okBtn = document.getElementById('confirm-modal-ok');
+  if (okBtn) {
+    okBtn.addEventListener('click', function () {
+      var f = store.pending;
+      store.pending = null;
+      var modal = document.getElementById('confirm-modal');
+      if (modal) modal.hidden = true;
+      document.body.classList.remove('modal-open');
+      if (f) f.submit();  // 原生 submit，不再触发 submit 事件
+    });
+  }
+})();
+</script>
+{% endblock %}
