@@ -82,15 +82,21 @@ port_listen() {
     return 1
 }
 
-# 下载到指定文件（优先 curl，其次 wget）
+# 下载到指定文件（优先 curl，其次 wget；自动重试 3 次）
 fetch_to() {  # fetch_to <url> <output-file>
-    if command -v curl >/dev/null 2>&1; then
-        curl -fsSL --connect-timeout 15 -o "$2" "$1"
-    elif command -v wget >/dev/null 2>&1; then
-        wget -q --timeout=15 -O "$2" "$1"
-    else
-        return 127
-    fi
+    local attempt
+    for attempt in 1 2 3; do
+        if command -v curl >/dev/null 2>&1; then
+            curl -fsSL --connect-timeout 15 --max-time 600 -o "$2" "$1" && return 0
+        elif command -v wget >/dev/null 2>&1; then
+            wget -q --timeout=15 -O "$2" "$1" && return 0
+        else
+            return 127
+        fi
+        printf "  ${C_Y}[重试]${C_0} 下载失败（第 %d/3 次），2 秒后重试……\n" "$attempt"
+        sleep 2
+    done
+    return 1
 }
 
 # ---------------------------------------------------------------- 全局状态
