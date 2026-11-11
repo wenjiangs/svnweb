@@ -397,28 +397,28 @@ def path_kind(name, path, rev):
 
 
 def file_size(name, path, rev):
-    """返回路径在该版本下的文件大小（字节），非文件或失败返回 None。"""
+    """返回路径在该版本下的文件大小（字节），非文件或失败返回 None。
+
+    注意不能用 `svn info --xml` 对 URL 查询——size 字段只在工作副本目标上
+    才会输出，对仓库 URL 恒为空，那会导致所有文件大小都按 0 处理。
+    这里改为从父目录的 `svn list --xml`（svn_list，含缓存）里取该文件的 size。
+    """
     if rev <= 0:
         return None
     key = ("size", name, path, rev)
     v = cache_get(key)
     if v is not None:
         return v
-    rc, out, err = run_svn(["svn", "info", "--xml", "-r", str(rev),
-                            "--non-interactive", repo_url(name, path, rev)])
-    if rc != 0:
+    parent, base = (path.rsplit("/", 1) if "/" in path else ("", path))
+    entries = svn_list(name, parent, rev)
+    if not entries:
         return None
     size = None
-    try:
-        for e in ET.fromstring(out).iter("entry"):
-            if e.get("kind") == "file":
-                sz = e.findtext("size")
-                if sz and sz.isdigit():
-                    size = int(sz)
+    for e in entries:
+        if e["kind"] == "file" and e["name"] == base:
+            size = e.get("size")
             break
-    except ET.ParseError:
-        return None
-    return cache_set(key, size)
+    return cache_set(key, size) if size is not None else None
 
 
 def svn_log(name, path, rev, limit=LOG_PAGE_SIZE, until_rev=None):
