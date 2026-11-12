@@ -2942,13 +2942,16 @@ legend {
   margin: 14px 0 0;
   padding: 0;
 }
-/* 分组标题：<legend> 与 <label class="perm-legend"> 两种写法渲染一致 */
+/* 分组标题：<legend> 与 <label class="perm-legend"> 共用排版；legend 左侧不留白 */
 .perm-fieldset legend,
 .perm-legend {
   display: block;
   padding: 0 5px 5px;
   margin: 0;
   font-weight: 600;
+}
+.perm-fieldset legend {
+  padding-left: 0;
 }
 #branch-modal .perm-fieldset {
   margin-top: 0;
@@ -2971,6 +2974,159 @@ legend {
 .user-modal-form .field input {
   width: 100%;
   box-sizing: border-box;
+}
+
+/* ---------- 网站账号弹窗：角色下拉 ----------
+   原生 select 保留为表单字段（提交值 / 角色预填），外观由按钮 + 菜单接管。 */
+.role-picker {
+  position: relative;
+}
+.role-picker-native {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.role-picker-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--fg);
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.12s, background-color 0.12s, box-shadow 0.12s;
+}
+.role-picker-btn:hover {
+  background: var(--canvas-subtle);
+  border-color: #a8b3bf;
+}
+.role-picker-btn:focus-visible,
+.role-picker.open .role-picker-btn {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
+}
+.rp-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+.rp-badge svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.rp-badge.rp-admin {
+  background: var(--success-subtle);
+  color: var(--success);
+}
+.rp-badge.rp-viewer {
+  background: var(--canvas-inset);
+  color: var(--fg-muted);
+}
+.rp-badge.rp-custom {
+  background: var(--attention-subtle);
+  color: var(--attention);
+}
+.rp-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.35;
+}
+.rp-name,
+.rp-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rp-name {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.rp-desc {
+  font-size: 12px;
+  color: var(--fg-subtle);
+}
+.rp-chev {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--fg-muted);
+  transition: transform 0.15s ease;
+}
+.role-picker.open .rp-chev {
+  transform: rotate(180deg);
+}
+.role-picker-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+  animation: rp-menu-in 0.12s ease-out;
+}
+.role-picker-menu[hidden] {
+  display: none;
+}
+@keyframes rp-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.role-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.role-picker-item:hover,
+.role-picker-item.is-active {
+  background: var(--canvas-subtle);
+}
+.role-picker-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.role-picker-item.is-selected .rp-name {
+  color: var(--accent);
+}
+.rp-check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+  visibility: hidden;
+}
+.role-picker-item.is-selected .rp-check {
+  visibility: visible;
 }
 @media (max-width: 640px) {
   .field-row {

@@ -73,14 +73,59 @@
           <input type="text" name="username" id="webuser-name-input" required maxlength="64"
                  pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,63}" spellcheck="false">
         </label>
-        <label class="field">
+        <div class="field">
           <span class="field-label">角色</span>
-          <select name="role" id="webuser-role-select" class="field-input">
-            {% for r in roles %}
-            <option value="{{ r.name }}">{{ "管理员（全部权限）" if r.name == "admin" else ("只读（仅浏览）" if r.name == "viewer" else r.name) }}</option>
-            {% endfor %}
-          </select>
-        </label>
+          <div class="role-picker" id="webuser-role-picker">
+            {# 原生 select 只负责表单提交与取值，外观交给下面的自定义下拉 #}
+            <select name="role" id="webuser-role-select" class="role-picker-native" tabindex="-1" aria-hidden="true">
+              {% for r in roles %}
+              <option value="{{ r.name }}"{% if r.name == 'viewer' %} selected{% endif %}>{{ "管理员（全部权限）" if r.name == "admin" else ("只读（仅浏览）" if r.name == "viewer" else r.name) }}</option>
+              {% endfor %}
+            </select>
+            <button type="button" class="role-picker-btn" id="webuser-role-btn"
+                    aria-haspopup="listbox" aria-expanded="false" aria-controls="webuser-role-menu" aria-label="选择角色">
+              <span class="rp-badge rp-viewer" id="webuser-role-badge">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 3C4.6 3 1.9 5.3 1 8c.9 2.7 3.6 5 7 5s6.1-2.3 7-5c-.9-2.7-3.6-5-7-5Zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.7a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6Z"/></svg>
+              </span>
+              <span class="rp-copy">
+                <span class="rp-name" id="webuser-role-name">只读用户</span>
+                <span class="rp-desc" id="webuser-role-desc">仅可浏览仓库，无管理权限</span>
+              </span>
+              <svg class="rp-chev" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M4.2 6 8 9.8 11.8 6l1.1 1.1-4.9 4.9L3.1 7.1 4.2 6Z"/></svg>
+            </button>
+            <div class="role-picker-menu" id="webuser-role-menu" role="listbox" aria-label="角色列表" hidden>
+              {% for r in roles %}
+              {% if r.name == 'admin' %}
+                {% set rp_name = '管理员' %}
+                {% set rp_desc = '拥有全部管理权限' %}
+                {% set rp_tone = 'admin' %}
+                {% set rp_path = 'M8 1.5 2.5 3.6v4.1c0 3.2 2.2 5.7 5.5 6.8 3.3-1.1 5.5-3.6 5.5-6.8V3.6L8 1.5Zm0 1.9 4 1.4v2.9c0 2.2-1.5 4-4 5-2.5-1-4-2.8-4-5V4.8l4-1.4Z' %}
+              {% elif r.name == 'viewer' %}
+                {% set rp_name = '只读用户' %}
+                {% set rp_desc = '仅可浏览仓库，无管理权限' %}
+                {% set rp_tone = 'viewer' %}
+                {% set rp_path = 'M8 3C4.6 3 1.9 5.3 1 8c.9 2.7 3.6 5 7 5s6.1-2.3 7-5c-.9-2.7-3.6-5-7-5Zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.7a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6Z' %}
+              {% else %}
+                {% set rp_name = r.name %}
+                {% set rp_desc = ('自定义角色 · ' ~ (r.perms|length) ~ ' 项权限') if r.perms else '自定义角色 · 仅浏览' %}
+                {% set rp_tone = 'custom' %}
+                {% set rp_path = 'M2 4h12v1.5H2V4Zm0 3.25h12v1.5H2v-1.5Zm0 3.25h12V12H2v-1.5ZM5.5 2.5h2v3h-2v-3Zm4 3.25h2v3h-2v-3Zm-4 3.25h2v3h-2v-3Z' %}
+              {% endif %}
+              <div class="role-picker-item" role="option" tabindex="-1" aria-selected="false"
+                   data-role="{{ r.name }}" data-name="{{ rp_name }}" data-desc="{{ rp_desc }}">
+                <span class="rp-badge rp-{{ rp_tone }}">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="{{ rp_path }}"/></svg>
+                </span>
+                <span class="rp-copy">
+                  <span class="rp-name">{{ rp_name }}</span>
+                  <span class="rp-desc">{{ rp_desc }}</span>
+                </span>
+                <svg class="rp-check" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.8 11.4 3.4 8l1.1-1.1 2.3 2.3 4.7-4.7L12.6 5.6l-5.8 5.8Z"/></svg>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
         <label class="field">
           <span class="field-label">密码</span>
           <input type="password" name="password" id="webuser-pw-input" autocomplete="new-password"
@@ -113,10 +158,83 @@
   var pw = document.getElementById('webuser-pw-input');
   var pw2 = modal.querySelector('input[name="password2"]');
   var hint = document.getElementById('webuser-modal-hint');
+  var picker = document.getElementById('webuser-role-picker');
+  var pickerBtn = document.getElementById('webuser-role-btn');
+  var pickerMenu = document.getElementById('webuser-role-menu');
+  var roleBadge = document.getElementById('webuser-role-badge');
+  var roleName = document.getElementById('webuser-role-name');
+  var roleDesc = document.getElementById('webuser-role-desc');
+  var roleItems = pickerMenu ? Array.prototype.slice.call(pickerMenu.querySelectorAll('.role-picker-item')) : [];
 
+  /* 角色下拉：原生 select 仍是表单字段，按钮与菜单只负责展示和交互。 */
   function setRole(val) {
     if (roleSel) { roleSel.value = val; }
+    var cur = roleSel ? roleSel.value : val;
+    var hit = null;
+    roleItems.forEach(function (it) {
+      var on = it.getAttribute('data-role') === cur;
+      if (on) { it.classList.add('is-selected'); } else { it.classList.remove('is-selected'); }
+      it.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) { hit = it; }
+    });
+    if (!hit) { hit = roleItems[0]; }
+    if (!hit) { return; }
+    if (roleName) { roleName.textContent = hit.getAttribute('data-name'); }
+    if (roleDesc) { roleDesc.textContent = hit.getAttribute('data-desc'); }
+    var ib = hit.querySelector('.rp-badge');
+    if (roleBadge && ib) { roleBadge.className = ib.className; roleBadge.innerHTML = ib.innerHTML; }
   }
+
+  function openPicker() {
+    if (!picker || !pickerMenu) { return; }
+    picker.classList.add('open');
+    pickerMenu.hidden = false;
+    if (pickerBtn) { pickerBtn.setAttribute('aria-expanded', 'true'); }
+    var cur = pickerMenu.querySelector('.role-picker-item.is-selected') || roleItems[0];
+    if (cur) { cur.focus(); }
+  }
+  function closePicker(backFocus) {
+    if (!picker || !pickerMenu) { return; }
+    picker.classList.remove('open');
+    pickerMenu.hidden = true;
+    if (pickerBtn) {
+      pickerBtn.setAttribute('aria-expanded', 'false');
+      if (backFocus) { pickerBtn.focus(); }
+    }
+  }
+  if (pickerBtn && picker) {
+    pickerBtn.addEventListener('click', function () {
+      if (picker.classList.contains('open')) { closePicker(true); } else { openPicker(); }
+    });
+    pickerBtn.addEventListener('keydown', function (ev) {
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { ev.preventDefault(); openPicker(); }
+    });
+  }
+  roleItems.forEach(function (it, i) {
+    it.addEventListener('click', function () {
+      setRole(it.getAttribute('data-role'));
+      closePicker(true);
+    });
+    it.addEventListener('keydown', function (ev) {
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        var next = roleItems[(i + (ev.key === 'ArrowDown' ? 1 : roleItems.length - 1)) % roleItems.length];
+        if (next) { next.focus(); }
+      } else if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        setRole(it.getAttribute('data-role'));
+        closePicker(true);
+      } else if (ev.key === 'Escape') {
+        ev.preventDefault();
+        closePicker(true);
+      }
+    });
+  });
+  /* 点击弹窗内其它区域（含遮罩）收起菜单；监听挂在弹窗上，pjax 替换后随旧 DOM 销毁。 */
+  modal.addEventListener('click', function (ev) {
+    if (picker && picker.classList.contains('open') && !picker.contains(ev.target)) { closePicker(false); }
+  });
+  setRole('viewer');
 
   root.addEventListener('click', function (ev) {
     var t = ev.target.closest ? ev.target : null;
